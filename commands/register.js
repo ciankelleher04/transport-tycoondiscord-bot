@@ -68,17 +68,49 @@ module.exports = {
 
             const users = loadUsers();
 
+            const streakResponse = await fetch(`${BASE_API_URL}/streak/${tycoonUserId}`, {
+                method: 'GET',
+                headers: {
+                    'X-Tycoon-Key': apiKey,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            let streakData = null;
+
+            if (streakResponse.ok) {
+                const streakResult = await streakResponse.json();
+
+                console.log('Initial streak response:', streakResult);
+
+                streakData = {
+                    days: streakResult.data?.days ?? 0,
+                    record: streakResult.data?.record ?? 0,
+                    streak: streakResult.data?.streak ?? 0,
+                    lastChecked: new Date().toISOString(),
+                };
+            } else {
+                console.error(
+                    `Initial streak check failed: ${streakResponse.status} ${streakResponse.statusText}`
+                );
+            }
+
             users[discordId] = {
                 discordId,
                 tycoonUserId,
                 apiKey,
                 registeredAt: new Date().toISOString(),
+                streak: streakData,
             };
 
             saveUsers(users);
 
             await interaction.editReply(
-                `Registered successfully.\nTycoon user ID: ${tycoonUserId}`
+                `Registered successfully.\n` +
+                `Tycoon user ID: ${tycoonUserId}\n` +
+                (streakData
+                    ? `Current streak: ${streakData.streak} days`
+                    : 'Your key was saved, but the initial streak check failed.')
             );
         } catch (error) {
             console.error('Register command failed:', error);
