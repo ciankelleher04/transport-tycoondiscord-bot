@@ -45,7 +45,6 @@ async function checkStreakReminders(client) {
                             `[STREAK REMINDERS] Sent ${stage.label} reminder to ${discordId} for ${streakName}`
                         );
 
-                        // Mark this and all larger thresholds as handled
                         for (const completedStage of REMINDER_STAGES) {
                             if (
                                 completedStage.ms >= stage.ms &&
@@ -66,10 +65,9 @@ async function checkStreakReminders(client) {
             }
         }
     }
+
+    saveUsers(users);
 }
-
-saveUsers(users);
-
 
 function startStreakReminderChecker(client) {
     checkStreakReminders(client);
