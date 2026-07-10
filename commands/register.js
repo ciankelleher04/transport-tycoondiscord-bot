@@ -1,27 +1,9 @@
 const { SlashCommandBuilder } = require('discord.js');
-const fs = require('node:fs');
-const path = require('node:path');
+const { loadUsers, saveUsers } = require('../utils/tycoon');
 
 const BASE_API_URL = 'https://api.tycoon.community';
-const USERS_FILE = "/data/tycoon-users.json";
 
-function loadUsers() {
-    if (!fs.existsSync(USERS_FILE)) return {};
-    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-}
 
-console.log("Current working directory:", process.cwd());
-console.log("Saving users file to:", USERS_FILE);
-
-function saveUsers(users) {
-    const dir = path.dirname(USERS_FILE);
-
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
-
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -39,7 +21,6 @@ module.exports = {
 
         const apiKey = interaction.options.getString('api_key');
         const discordId = interaction.user.id;
-        console.log("USERS_FILE path:", USERS_FILE);
 
         try {
             const userResponse = await fetch(`${BASE_API_URL}/snowflake2user/${discordId}`, {

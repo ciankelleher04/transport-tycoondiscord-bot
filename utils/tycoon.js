@@ -3,7 +3,8 @@ const fs = require('node:fs');
 const BASE_API_URL = 'https://api.tycoon.community';
 const path = require("path");
 
-const USERS_FILE = path.join(__dirname, "..", "data", "tycoon-users.json");
+const USERS_FILE = process.env.USERS_FILE
+    ?? path.join(__dirname, "..", "data", "tycoon-users.json");;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
