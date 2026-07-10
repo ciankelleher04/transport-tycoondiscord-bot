@@ -5,6 +5,8 @@ const {
     buildStoredStreaks,
 } = require('../utils/tycoon');
 
+const cron = require('node-cron');
+
 async function refreshAllStreaks() {
     const users = loadUsers();
 
@@ -43,9 +45,20 @@ async function refreshAllStreaks() {
 }
 
 function startStreakRefresher() {
+    // Refresh immediately when the bot starts
     refreshAllStreaks();
 
-    setInterval(refreshAllStreaks, 3 * 60 * 60 * 1000);
+    // Refresh every 3 hours on the UTC clock
+    cron.schedule(
+        '0 */3 * * *',
+        () => {
+            console.log('[STREAK REFRESH] Scheduled UTC refresh...');
+            refreshAllStreaks();
+        },
+        {
+            timezone: 'UTC',
+        }
+    );
 }
 
 module.exports = {
