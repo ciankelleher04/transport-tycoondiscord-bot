@@ -26,8 +26,11 @@ async function checkStreakReminders(client) {
                 streak.remindersSent = [];
             }
 
-            for (const stage of REMINDER_STAGES) {
-                if (timeLeft <= stage.ms && !streak.remindersSent.includes(stage.label)) {
+            for (const stage of [...REMINDER_STAGES].reverse()) {
+                if (
+                    timeLeft <= stage.ms &&
+                    !streak.remindersSent.includes(stage.label)
+                ) {
                     try {
                         const userToMessage = await client.users.fetch(discordId);
 
@@ -42,20 +45,31 @@ async function checkStreakReminders(client) {
                             `[STREAK REMINDERS] Sent ${stage.label} reminder to ${discordId} for ${streakName}`
                         );
 
-                        streak.remindersSent.push(stage.label);
+                        // Mark this and all larger thresholds as handled
+                        for (const completedStage of REMINDER_STAGES) {
+                            if (
+                                completedStage.ms >= stage.ms &&
+                                !streak.remindersSent.includes(completedStage.label)
+                            ) {
+                                streak.remindersSent.push(completedStage.label);
+                            }
+                        }
                     } catch (error) {
                         console.error(
                             `[STREAK REMINDERS] Could not DM ${discordId}:`,
                             error
                         );
                     }
+
+                    break;
                 }
             }
         }
     }
-
-    saveUsers(users);
 }
+
+saveUsers(users);
+
 
 function startStreakReminderChecker(client) {
     checkStreakReminders(client);
