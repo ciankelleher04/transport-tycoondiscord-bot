@@ -1,0 +1,17 @@
+name: Discord Bot
+version: "1.0.0"
+slug: discord_bot
+description: Runs my Discord bot as a Home Assistant add-on
+startup: services
+boot: auto
+arch:
+  - aarch64
+init: false
+options:
+  discord_token: ""
+  client_id: ""
+schema:
+  discord_token: str
+  client_id: str
+map:
+  - addon_config:rw
