@@ -23,6 +23,7 @@ const bearxpCommand = require("./commands/bearxp");
 const streakstatus = require("./commands/streakstatus");
 const register = require("./commands/register");
 const { startStreakReminderChecker } = require("./services/reminders");
+const logger = require('./services/logger');
 
 const activeCommands = [
     pingCommand,
@@ -37,10 +38,14 @@ for (const command of activeCommands) {
     client.commands.set(command.data.name, command);
 }
 
-//Runs once bot is ready to be used
+// Runs once bot is ready to be used
 client.once("clientReady", () => {
     console.log("Bot is ready!");
     console.log(`Logged in as ${client.user.tag}`);
+
+    logger.setClient(client);
+    logger.important(`Bot logged in as ${client.user.tag}`);
+
     console.log(require("fs").readdirSync("/"));
     startStreakRefresher();
     startStreakReminderChecker(client);
@@ -64,13 +69,30 @@ client.on("interactionCreate", async interaction => {
     try {
         await command.execute(interaction);
     } catch (error) {
-        console.error(error);
+        logger.error(
+            `Command /${interaction.commandName} failed for ${interaction.user.tag}`,
+            error
+        );
 
-        await interaction.reply({
+        const errorMessage = {
             content: "There was an error while running this command.",
             ephemeral: true,
-        });
+        };
+
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(errorMessage);
+        } else {
+            await interaction.reply(errorMessage);
+        }
     }
+});
+
+process.on('unhandledRejection', error => {
+    logger.error('Unhandled promise rejection', error);
+});
+
+process.on('uncaughtException', error => {
+    logger.error('Uncaught exception', error);
 });
 
 // Log in to discord
