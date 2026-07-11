@@ -1,4 +1,9 @@
-const { loadUsers, saveUsers } = require('../utils/tycoon');
+const {
+    loadUsers,
+    saveUsers,
+    fetchUserData,
+    buildStoredStreaks,
+} = require('../utils/tycoon');
 
 const REMINDER_STAGES = [
     { label: '12h', ms: 12 * 60 * 60 * 1000 },
@@ -7,18 +12,63 @@ const REMINDER_STAGES = [
     { label: '1h', ms: 1 * 60 * 60 * 1000 },
 ];
 
+async function refreshUserBeforeOneHourReminder(discordId, user, users) {
+    console.log(
+        `[STREAK REMINDERS] 1h reminder due for ${discordId}. Refreshing live data first...`
+    );
+
+    try {
+        const { data: result, chargesLeft } = await fetchUserData(
+            user.apiKey,
+            user.tycoonUserId
+        );
+
+        const apiStreaks = result?.data?.streaks;
+
+        if (!apiStreaks) {
+            console.log(
+                `[STREAK REMINDERS] No live streak data returned for ${discordId}.`
+            );
+
+            return false;
+        }
+
+        users[discordId].streaks = buildStoredStreaks(
+            apiStreaks,
+            users[discordId].streaks
+        );
+
+        users[discordId].lastRefresh = new Date().toISOString();
+        users[discordId].chargesLeft = chargesLeft;
+
+        console.log(
+            `[STREAK REMINDERS] Live data refreshed for ${discordId}. Charges left: ${chargesLeft}`
+        );
+
+        return true;
+    } catch (error) {
+        console.error(
+            `[STREAK REMINDERS] Live refresh failed for ${discordId}:`,
+            error
+        );
+
+        return false;
+    }
+}
+
 async function checkStreakReminders(client) {
     const users = loadUsers();
-    const now = Date.now();
 
     console.log('[STREAK REMINDERS] Checking reminders...');
 
     for (const [discordId, user] of Object.entries(users)) {
         if (!user.streaks) continue;
 
-        for (const [streakName, streak] of Object.entries(user.streaks)) {
-            const expiresAt = new Date(streak.expiresAt).getTime();
-            const timeLeft = expiresAt - now;
+        for (const [streakName, storedStreak] of Object.entries(user.streaks)) {
+            let streak = storedStreak;
+            let now = Date.now();
+            let expiresAt = new Date(streak.expiresAt).getTime();
+            let timeLeft = expiresAt - now;
 
             if (timeLeft <= 0) continue;
 
@@ -31,6 +81,52 @@ async function checkStreakReminders(client) {
                     timeLeft <= stage.ms &&
                     !streak.remindersSent.includes(stage.label)
                 ) {
+                    // Only make a live API call before the 1-hour reminder.
+                    if (stage.label === '1h') {
+                        const refreshed = await refreshUserBeforeOneHourReminder(
+                            discordId,
+                            user,
+                            users
+                        );
+
+                        // Do not send a possibly incorrect reminder if the API failed.
+                        if (!refreshed) {
+                            break;
+                        }
+
+                        // Reload this streak from the newly refreshed data.
+                        streak = users[discordId].streaks?.[streakName];
+
+                        if (!streak) {
+                            console.log(
+                                `[STREAK REMINDERS] ${streakName} is no longer present after refresh for ${discordId}.`
+                            );
+
+                            break;
+                        }
+
+                        now = Date.now();
+                        expiresAt = new Date(streak.expiresAt).getTime();
+                        timeLeft = expiresAt - now;
+
+                        if (!Array.isArray(streak.remindersSent)) {
+                            streak.remindersSent = [];
+                        }
+
+                        // After refreshing, the streak may no longer be near expiry.
+                        if (
+                            timeLeft <= 0 ||
+                            timeLeft > stage.ms ||
+                            streak.remindersSent.includes(stage.label)
+                        ) {
+                            console.log(
+                                `[STREAK REMINDERS] ${streakName} no longer needs a 1h reminder for ${discordId}.`
+                            );
+
+                            break;
+                        }
+                    }
+
                     try {
                         const userToMessage = await client.users.fetch(discordId);
 
