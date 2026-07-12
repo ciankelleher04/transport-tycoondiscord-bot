@@ -47,7 +47,7 @@ client.once("clientReady", () => {
     logger.important(`Bot logged in as ${client.user.tag}`);
 
     console.log(require("fs").readdirSync("/"));
-    startStreakRefresher();
+    startStreakRefresher(client);
     startStreakReminderChecker(client);
 });
 

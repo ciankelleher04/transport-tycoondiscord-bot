@@ -7,7 +7,7 @@ const {
 
 const cron = require('node-cron');
 
-async function refreshAllStreaks() {
+async function refreshAllStreaks(client) {
     const users = loadUsers();
 
     console.log('[STREAK REFRESH] Starting refresh...');
@@ -33,7 +33,18 @@ async function refreshAllStreaks() {
             users[discordId].lastRefresh = new Date().toISOString();
             users[discordId].chargesLeft = chargesLeft;
 
-            console.log(`[STREAK REFRESH] Refreshed ${discordId}. Charges left: ${chargesLeft}`);
+            let username = discordId;
+
+            try {
+                const discordUser = await client.users.fetch(discordId);
+                username = discordUser.username;
+            } catch {
+                // If Discord can't be reached, we'll just use the ID.
+            }
+
+            console.log(
+                `[STREAK REFRESH] Refreshed ${username} (${discordId}). Charges left: ${chargesLeft}`
+            );
         } catch (error) {
             console.error(`[STREAK REFRESH] Failed for ${discordId}:`, error);
         }
@@ -44,16 +55,16 @@ async function refreshAllStreaks() {
     console.log('[STREAK REFRESH] Finished.');
 }
 
-function startStreakRefresher() {
+function startStreakRefresher(client) {
     // Refresh immediately when the bot starts
-    refreshAllStreaks();
+    refreshAllStreaks(client);
 
     // Refresh every 3 hours on the UTC clock
     cron.schedule(
         '0 */3 * * *',
         () => {
             console.log('[STREAK REFRESH] Scheduled UTC refresh...');
-            refreshAllStreaks();
+            refreshAllStreaks(client);
         },
         {
             timezone: 'UTC',
