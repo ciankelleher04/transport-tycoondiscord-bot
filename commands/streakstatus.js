@@ -53,9 +53,18 @@ module.exports = {
                 return interaction.editReply('No streak data found in the API response.');
             }
 
+            const now = Date.now();
+
             const activeStreaks = Object.entries(streaks)
-                .filter(([, info]) => info.current > 0)
-                .sort((a, b) => b[1].current - a[1].current);
+                .filter(([, info]) => {
+                    const expiryDate = getStreakExpiryDate(info.last_updated_day);
+
+                    return (
+                        Number(info.current) > 0 &&
+                        expiryDate.getTime() > now
+                    );
+                })
+                .sort((a, b) => Number(b[1].current) - Number(a[1].current));
 
             if (activeStreaks.length === 0) {
                 return interaction.editReply(
