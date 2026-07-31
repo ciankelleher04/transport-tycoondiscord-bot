@@ -9,7 +9,7 @@ module.exports = {
         .setDescription("Show the servers TT Tools is connected to"),
 
     async execute(interaction) {
-        if (interaction.user.id !== process.env.BOT_OWNER_ID) {
+        if (interaction.user.id !== process.env.ADMIN_USER_ID) {
             return interaction.reply({
                 content: "You do not have permission to use this command.",
                 ephemeral: true,
