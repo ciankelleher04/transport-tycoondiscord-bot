@@ -5,6 +5,10 @@ const {
     buildStoredStreaks,
 } = require('../utils/tycoon');
 
+const {
+    checkApiChargeReminder,
+} = require('./apiChargeReminders');
+
 const REMINDER_STAGES = [
     { label: '12h', ms: 12 * 60 * 60 * 1000 },
     { label: '6h', ms: 6 * 60 * 60 * 1000 },
@@ -12,7 +16,12 @@ const REMINDER_STAGES = [
     { label: '1h', ms: 1 * 60 * 60 * 1000 },
 ];
 
-async function refreshUserBeforeOneHourReminder(discordId, user, users) {
+async function refreshUserBeforeOneHourReminder(
+    client,
+    discordId,
+    user,
+    users
+) {
     console.log(
         `[STREAK REMINDERS] 1h reminder due for ${discordId}. Refreshing live data first...`
     );
@@ -84,6 +93,7 @@ async function checkStreakReminders(client) {
                     // Only make a live API call before the 1-hour reminder.
                     if (stage.label === '1h') {
                         const refreshed = await refreshUserBeforeOneHourReminder(
+                            client,
                             discordId,
                             user,
                             users

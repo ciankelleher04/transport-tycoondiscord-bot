@@ -5,6 +5,10 @@ const {
     buildStoredStreaks,
 } = require('../utils/tycoon');
 
+const {
+    checkApiChargeReminder,
+} = require('./apiChargeReminders');
+
 const cron = require('node-cron');
 
 async function refreshAllStreaks(client) {
@@ -32,6 +36,22 @@ async function refreshAllStreaks(client) {
             );
             users[discordId].lastRefresh = new Date().toISOString();
             users[discordId].chargesLeft = chargesLeft;
+            await checkApiChargeReminder(
+                client,
+                discordId,
+                users[discordId],
+                chargesLeft
+            );
+            const apiStreaks = result?.data?.streaks;
+
+            if (!apiStreaks) {
+                console.log(`[STREAK REFRESH] No streak data for ${discordId}`);
+                continue;
+            }
+            users[discordId].streaks = buildStoredStreaks(
+                apiStreaks,
+                users[discordId].streaks
+            );
 
             let username = discordId;
 
