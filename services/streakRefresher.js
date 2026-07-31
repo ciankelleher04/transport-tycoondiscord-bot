@@ -23,31 +23,25 @@ async function refreshAllStreaks(client) {
                 user.tycoonUserId
             );
 
-            const apiStreaks = result?.data?.streaks;
-
-            if (!apiStreaks) {
-                console.log(`[STREAK REFRESH] No streak data for ${discordId}`);
-                continue;
-            }
-
-            users[discordId].streaks = buildStoredStreaks(
-                apiStreaks,
-                users[discordId].streaks
-            );
             users[discordId].lastRefresh = new Date().toISOString();
             users[discordId].chargesLeft = chargesLeft;
+
             await checkApiChargeReminder(
                 client,
                 discordId,
                 users[discordId],
                 chargesLeft
             );
+
             const apiStreaks = result?.data?.streaks;
 
             if (!apiStreaks) {
-                console.log(`[STREAK REFRESH] No streak data for ${discordId}`);
+                console.log(
+                    `[STREAK REFRESH] No streak data for ${discordId}`
+                );
                 continue;
             }
+
             users[discordId].streaks = buildStoredStreaks(
                 apiStreaks,
                 users[discordId].streaks
@@ -59,14 +53,17 @@ async function refreshAllStreaks(client) {
                 const discordUser = await client.users.fetch(discordId);
                 username = discordUser.username;
             } catch {
-                // If Discord can't be reached, we'll just use the ID.
+                // Use the Discord ID if the username cannot be fetched.
             }
 
             console.log(
                 `[STREAK REFRESH] Refreshed ${username} (${discordId}). Charges left: ${chargesLeft}`
             );
         } catch (error) {
-            console.error(`[STREAK REFRESH] Failed for ${discordId}:`, error);
+            console.error(
+                `[STREAK REFRESH] Failed for ${discordId}:`,
+                error
+            );
         }
     }
 
@@ -76,10 +73,10 @@ async function refreshAllStreaks(client) {
 }
 
 function startStreakRefresher(client) {
-    // Refresh immediately when the bot starts
+    // Refresh immediately when the bot starts.
     refreshAllStreaks(client);
 
-    // Refresh every 3 hours on the UTC clock
+    // Refresh every 3 hours on the UTC clock.
     cron.schedule(
         '0 */3 * * *',
         () => {
