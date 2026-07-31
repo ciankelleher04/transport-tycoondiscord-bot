@@ -26,6 +26,7 @@ const { startStreakReminderChecker } = require("./services/reminders");
 const logger = require('./services/logger');
 const healthCommand = require("./commands/health");
 const restartCommand = require("./commands/restartbot");
+const statsCommand = require("./commands/stats");
 
 const activeCommands = [
     pingCommand,
@@ -36,6 +37,7 @@ const activeCommands = [
     register,
     healthCommand,
     restartCommand,
+    statsCommand,
 ];
 
 for (const command of activeCommands) {
