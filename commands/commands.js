@@ -13,7 +13,7 @@ module.exports = {
                     '`/ping` — Check whether the bot is online',
                     '`/register` — Register your Transport Tycoon API key',
                     '`/streakstatus` — Show your active job streaks',
-                    '`/fishxp` — Calculate Deadliest Catch XP requirements',
+                    '`/fishxp` — Calculate Fish XP requirements',
                     '`/bearxp` — Calculate hunting XP requirements',
                 ].join('\n')
             );
