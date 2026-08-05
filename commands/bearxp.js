@@ -5,6 +5,8 @@ const {
     InteractionContextType,
 } = require("discord.js");
 
+const { fetchSotd } = require("../utils/tycoon");
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("bearxp")
@@ -61,9 +63,30 @@ module.exports = {
         //Get command options
         const targetXp = parseInt(interaction.options.getString("target"));
         const currentXp = interaction.options.getInteger("current_xp");
-        const baseXp = interaction.options.getNumber("base_xp");
+        const enteredBaseXp = interaction.options.getNumber("base_xp");
         const usingBonusXp = interaction.options.getBoolean("bonus_xp");
         const bxpAvailable = interaction.options.getInteger("bonus_xp_amount") || 0;
+
+        let baseXp = enteredBaseXp;
+
+        let sotdApplied = false;
+        let sotdBonus = 0;
+
+        try {
+            const sotd = await fetchSotd();
+
+            console.log("[SOTD]", sotd);
+
+            // We'll replace this once we know the exact aptitude value.
+            if (sotd.skill.toLowerCase().includes("hunt")) {
+                baseXp += sotd.bonus;
+                sotdBonus = sotd.bonus;
+                sotdApplied = true;
+            }
+
+        } catch (error) {
+            console.error("Failed to fetch SOTD:", error);
+        }
 
         //Constants
         const xpRemaining = targetXp - currentXp;
@@ -119,7 +142,7 @@ module.exports = {
                 },
                 {
                     name: "⭐ Base XP Bonus",
-                    value: `${baseXp}%`,
+                    value: `${enteredBaseXp}%`,
                     inline: true,
                 },
                 {
@@ -148,7 +171,13 @@ module.exports = {
                     inline: true,
                 },
             );
-
+        if (sotdApplied) {
+            bearEmbed.addFields({
+                name: "🐻 SOTD Bonus",
+                value: `+${sotdBonus}%`,
+                inline: true,
+            });
+        }
         //Reply
         await interaction.reply({
             embeds: [bearEmbed]
