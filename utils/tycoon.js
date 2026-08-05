@@ -126,6 +126,10 @@ async function fetchUserData(apiKey, tycoonUserId) {
             }
 
             const data = await response.json();
+            console.log(
+                '[TYCOON FULL API DATA]',
+                JSON.stringify(data, null, 2)
+            );
 
             console.log(
                 `[TYCOON API] Success using ${baseUrl} ` +
