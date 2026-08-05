@@ -28,6 +28,7 @@ const healthCommand = require("./commands/health");
 const restartCommand = require("./commands/restartbot");
 const statsCommand = require("./commands/stats");
 const serversCommand = require("./commands/servers");
+const suggestCommand = require('./commands/suggest');
 
 const activeCommands = [
     pingCommand,
@@ -40,6 +41,7 @@ const activeCommands = [
     restartCommand,
     statsCommand,
     serversCommand,
+    suggestCommand,
 ];
 
 for (const command of activeCommands) {

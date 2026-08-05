@@ -6,6 +6,8 @@ const API_BASE_URLS = [
     'https://apibeta.tycoon.community',
 ];
 
+const TYCOON_API_KEY = process.env.TYCOON_API_KEY;
+
 const USERS_FILE =
     process.env.USERS_FILE ??
     path.join(__dirname, '..', 'data', 'tycoon-users.json');
@@ -126,10 +128,6 @@ async function fetchUserData(apiKey, tycoonUserId) {
             }
 
             const data = await response.json();
-            console.log(
-                '[TYCOON FULL API DATA]',
-                JSON.stringify(data, null, 2)
-            );
 
             console.log(
                 `[TYCOON API] Success using ${baseUrl} ` +
@@ -169,11 +167,117 @@ async function fetchUserData(apiKey, tycoonUserId) {
     );
 }
 
+let cachedSotd = null;
+let cachedSotdFetchedAt = 0;
+
+const SOTD_CACHE_TIME = 60 * 60 * 1000;
+
+async function fetchSotd() {
+    if (!TYCOON_API_KEY) {
+        throw new Error(
+            'TYCOON_API_KEY is missing from the environment variables'
+        );
+    }
+
+    const cacheIsValid =
+        cachedSotd &&
+        Date.now() - cachedSotdFetchedAt < SOTD_CACHE_TIME;
+
+    if (cacheIsValid) {
+        return cachedSotd;
+    }
+
+    let lastError;
+
+    for (const baseUrl of API_BASE_URLS) {
+        const url = `${baseUrl}/sotd.json`;
+
+        try {
+            console.log(
+                `[TYCOON API] Trying ${baseUrl} for SOTD`
+            );
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-Tycoon-Key': TYCOON_API_KEY,
+                    'Content-Type': 'application/json',
+                },
+                signal: AbortSignal.timeout(10_000),
+            });
+
+            if (response.status >= 400 && response.status < 500) {
+                const errorBody = await response.text();
+
+                throw new Error(
+                    `SOTD request rejected: ${response.status} ` +
+                    `${response.statusText} ${errorBody}`
+                );
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    `SOTD server error: ${response.status} ` +
+                    response.statusText
+                );
+            }
+
+            const data = await response.json();
+
+            const sotd = {
+                aptitude: String(data.aptitude ?? '').toLowerCase(),
+                short: String(data.short ?? ''),
+                skill: String(data.skill ?? ''),
+                bonus: Number(data.bonus) || 0,
+            };
+
+            cachedSotd = sotd;
+            cachedSotdFetchedAt = Date.now();
+
+            console.log(
+                `[TYCOON API] Current SOTD: ` +
+                `${sotd.skill} +${sotd.bonus}%`
+            );
+
+            return sotd;
+        } catch (error) {
+            lastError = error;
+
+            console.error(
+                `[TYCOON API] SOTD failed using ${baseUrl}:`,
+                error.message
+            );
+
+            if (error.message.startsWith('SOTD request rejected:')) {
+                throw error;
+            }
+        }
+    }
+
+    /*
+     * If a fresh request fails but we have an older cached value,
+     * return it instead of breaking the XP commands.
+     */
+    if (cachedSotd) {
+        console.warn(
+            '[TYCOON API] Using expired cached SOTD value'
+        );
+
+        return cachedSotd;
+    }
+
+    throw new Error(
+        `Main and beta Tycoon SOTD APIs both failed. ` +
+        `Last error: ${lastError?.message ?? 'Unknown error'}`
+    );
+}
+
 module.exports = {
     loadUsers,
     saveUsers,
     getStreakExpiryDate,
     formatTimeRemaining,
     fetchUserData,
+    fetchSotd,
     buildStoredStreaks,
 };
