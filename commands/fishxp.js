@@ -9,6 +9,7 @@ const {
 
 const { fetchSotd } = require("../utils/tycoon");
 
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("fishxp")
@@ -130,7 +131,7 @@ module.exports = {
             .setTimestamp()
             .setColor("#5865F2")
             .setFooter({
-                text: `Requested by ${interaction.user.username} • ⚠️ Does not include SOTD bonus`,
+                text: `Requested by ${interaction.user.username}`,
             })
             .setAuthor({
                 name: interaction.client.user.username,
