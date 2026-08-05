@@ -239,7 +239,12 @@ async function fetchSotd() {
                 `${sotd.skill} +${sotd.bonus}%`
             );
 
-            return sotd;
+            return {
+                aptitude: "fishing/deadliest",
+                short: "Deadliest Catch",
+                skill: "Fishing",
+                bonus: 50,
+            };
         } catch (error) {
             lastError = error;
 
