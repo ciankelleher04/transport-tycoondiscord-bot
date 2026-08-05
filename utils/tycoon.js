@@ -172,7 +172,7 @@ let cachedSotdFetchedAt = 0;
 
 const SOTD_CACHE_TIME = 60 * 60 * 1000;
 
-async function fetchSotd() {
+async function fetchSotd(forceRefresh = false) {
     if (!TYCOON_API_KEY) {
         throw new Error(
             'TYCOON_API_KEY is missing from the environment variables'
@@ -183,7 +183,7 @@ async function fetchSotd() {
         cachedSotd &&
         Date.now() - cachedSotdFetchedAt < SOTD_CACHE_TIME;
 
-    if (cacheIsValid) {
+    if (!forceRefresh && cacheIsValid) {
         return cachedSotd;
     }
 
