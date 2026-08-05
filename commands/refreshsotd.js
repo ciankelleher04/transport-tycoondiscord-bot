@@ -23,7 +23,7 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        if (interaction.user.id !== process.env.OWNER_ID) {
+        if (interaction.user.id !== process.env.ADMIN_USER_ID) {
             return interaction.reply({
                 content: "You do not have permission to use this command.",
                 flags: MessageFlags.Ephemeral,
