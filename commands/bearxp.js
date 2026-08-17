@@ -96,7 +96,7 @@ module.exports = {
 
         //XP calculations
         const xpPerBearNoBonus = baseBearXp * (1 + (baseXp / 100));
-        const xpPerBearWithBonus = xpPerBearNoBonus + baseBearXp;
+        const xpPerBearWithBonus = xpPerBearNoBonus * 2;
 
         const bearsWithBonus = Math.floor(bxpAvailable / bxpUsedPerBear);
         const xpCoveredByBonusBears = bearsWithBonus * xpPerBearWithBonus;
