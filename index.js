@@ -30,6 +30,7 @@ const statsCommand = require("./commands/stats");
 const serversCommand = require("./commands/servers");
 const suggestCommand = require('./commands/suggest');
 const refreshSotdCommand = require("./commands/refreshsotd");
+const unregisterCommand = require("./commands/unregister");
 
 const activeCommands = [
     pingCommand,
@@ -44,6 +45,7 @@ const activeCommands = [
     serversCommand,
     suggestCommand,
     refreshSotdCommand,
+    unregisterCommand,
 ];
 
 for (const command of activeCommands) {
