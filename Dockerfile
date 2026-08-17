@@ -1,6 +1,6 @@
 FROM ghcr.io/home-assistant/aarch64-base:latest
 
-RUN apk add --no-cache nodejs npm
+RUN apk add --no-cache nodejs npm python3 make g++
 
 WORKDIR /app
 
