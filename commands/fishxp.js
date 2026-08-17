@@ -132,7 +132,7 @@ module.exports = {
             .setTimestamp()
             .setColor("#5865F2")
             .setFooter({
-                text: `Requested by ${interaction.user.username}`,
+                text: "Assumes fish are sold in batches of 10,000.",
             })
             .setAuthor({
                 name: interaction.client.user.username,
