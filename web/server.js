@@ -1,11 +1,14 @@
 const express = require("express");
 const Database = require("better-sqlite3");
+const fs = require("node:fs");
 
 const app = express();
 
 const PORT = process.env.STATS_PORT || 3000;
 const USERNAME = process.env.STATS_USERNAME;
 const PASSWORD = process.env.STATS_PASSWORD;
+
+const HEALTH_FILE = "/data/health.json";
 
 const db = new Database("/data/stats.db", {
     readonly: true,
@@ -55,6 +58,66 @@ function requireAuth(req, res, next) {
 app.use(requireAuth);
 
 app.get("/", (req, res) => {
+    /*
+     * =========================
+     * Health information
+     * =========================
+     */
+
+    let health = null;
+
+    try {
+        if (fs.existsSync(HEALTH_FILE)) {
+            health = JSON.parse(
+                fs.readFileSync(HEALTH_FILE, "utf8")
+            );
+        }
+    } catch (error) {
+        console.error(
+            "[STATS WEB] Failed to read health file:",
+            error
+        );
+    }
+
+    let botOnline = false;
+    let healthAgeSeconds = null;
+
+    if (health?.updatedAt) {
+        healthAgeSeconds = Math.floor(
+            (
+                Date.now() -
+                new Date(health.updatedAt).getTime()
+            ) / 1000
+        );
+
+        /*
+         * If we haven't received a health update for
+         * 90 seconds, consider the bot offline.
+         */
+        botOnline =
+            health.online === true &&
+            healthAgeSeconds <= 90;
+    }
+
+    const uptime = health
+        ? formatUptime(health.uptimeSeconds)
+        : "Unknown";
+
+    const ping = health?.ping ?? "Unknown";
+    const memoryMB = health?.memoryMB ?? "Unknown";
+    const currentServers =
+        health?.serverCount ?? "Unknown";
+
+    const lastHealthUpdate = health?.updatedAt
+        ? formatTimestamp(health.updatedAt)
+        : "Never";
+
+    /*
+     * =========================
+     * Command statistics
+     * =========================
+     */
+
     const totalCommands = db.prepare(`
         SELECT COUNT(*) AS count
         FROM command_usage
@@ -71,7 +134,7 @@ app.get("/", (req, res) => {
         WHERE guild_id IS NOT NULL
     `).get().count;
 
-    const commandsToday = db.prepare(`
+    const commandsLast24h = db.prepare(`
         SELECT COUNT(*) AS count
         FROM command_usage
         WHERE timestamp >= datetime('now', '-1 day')
@@ -142,14 +205,30 @@ app.get("/", (req, res) => {
         )
         .join("");
 
+    const statusClass =
+        botOnline ? "online" : "offline";
+
+    const statusText =
+        botOnline ? "Online" : "Offline";
+
+    const statusIcon =
+        botOnline ? "🟢" : "🔴";
+
     res.send(`
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
+
     <meta
         name="viewport"
         content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        http-equiv="refresh"
+        content="30"
     >
 
     <title>TT Tools Analytics</title>
@@ -179,6 +258,62 @@ app.get("/", (req, res) => {
         .subtitle {
             color: #9ca3af;
             margin-bottom: 30px;
+        }
+
+        .health-card {
+            background: #1b1f27;
+            border-radius: 12px;
+            padding: 22px;
+            margin-bottom: 20px;
+        }
+
+        .health-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .health-title {
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .status {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .online {
+            color: #4ade80;
+        }
+
+        .offline {
+            color: #f87171;
+        }
+
+        .health-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(auto-fit, minmax(170px, 1fr));
+            gap: 15px;
+        }
+
+        .health-item {
+            background: #15181e;
+            padding: 14px;
+            border-radius: 8px;
+        }
+
+        .health-label {
+            color: #9ca3af;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        .health-value {
+            font-size: 18px;
+            font-weight: bold;
         }
 
         .cards {
@@ -246,40 +381,137 @@ app.get("/", (req, res) => {
 </head>
 
 <body>
+
     <div class="container">
+
         <h1>TT Tools Analytics</h1>
 
         <div class="subtitle">
             Persistent command statistics
         </div>
 
+        <div class="health-card">
+
+            <div class="health-header">
+
+                <div class="health-title">
+                    🤖 Bot Health
+                </div>
+
+                <div class="status ${statusClass}">
+                    ${statusIcon} ${statusText}
+                </div>
+
+            </div>
+
+            <div class="health-grid">
+
+                <div class="health-item">
+                    <div class="health-label">
+                        Uptime
+                    </div>
+
+                    <div class="health-value">
+                        ${uptime}
+                    </div>
+                </div>
+
+                <div class="health-item">
+                    <div class="health-label">
+                        Discord Ping
+                    </div>
+
+                    <div class="health-value">
+                        ${ping} ms
+                    </div>
+                </div>
+
+                <div class="health-item">
+                    <div class="health-label">
+                        Bot Memory
+                    </div>
+
+                    <div class="health-value">
+                        ${memoryMB} MB
+                    </div>
+                </div>
+
+                <div class="health-item">
+                    <div class="health-label">
+                        Connected Servers
+                    </div>
+
+                    <div class="health-value">
+                        ${currentServers}
+                    </div>
+                </div>
+
+                <div class="health-item">
+                    <div class="health-label">
+                        Last Health Update
+                    </div>
+
+                    <div class="health-value">
+                        ${lastHealthUpdate}
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
         <div class="cards">
+
             <div class="card">
-                <div class="label">Total Commands</div>
-                <div class="value">${totalCommands}</div>
+                <div class="label">
+                    Total Commands
+                </div>
+
+                <div class="value">
+                    ${totalCommands}
+                </div>
             </div>
 
             <div class="card">
-                <div class="label">Unique Users</div>
-                <div class="value">${uniqueUsers}</div>
+                <div class="label">
+                    Unique Users
+                </div>
+
+                <div class="value">
+                    ${uniqueUsers}
+                </div>
             </div>
 
             <div class="card">
-                <div class="label">Servers</div>
-                <div class="value">${uniqueServers}</div>
+                <div class="label">
+                    Servers
+                </div>
+
+                <div class="value">
+                    ${uniqueServers}
+                </div>
             </div>
 
             <div class="card">
-                <div class="label">Commands Last 24h</div>
-                <div class="value">${commandsToday}</div>
+                <div class="label">
+                    Commands Last 24h
+                </div>
+
+                <div class="value">
+                    ${commandsLast24h}
+                </div>
             </div>
+
         </div>
 
         <div class="grid">
+
             <div class="panel">
+
                 <h2>Top Commands</h2>
 
                 <table>
+
                     <thead>
                         <tr>
                             <th>Command</th>
@@ -290,13 +522,17 @@ app.get("/", (req, res) => {
                     <tbody>
                         ${topCommandRows}
                     </tbody>
+
                 </table>
+
             </div>
 
             <div class="panel">
+
                 <h2>Top Servers</h2>
 
                 <table>
+
                     <thead>
                         <tr>
                             <th>Server</th>
@@ -307,14 +543,19 @@ app.get("/", (req, res) => {
                     <tbody>
                         ${topServerRows}
                     </tbody>
+
                 </table>
+
             </div>
+
         </div>
 
         <div class="panel">
+
             <h2>Recent Commands</h2>
 
             <table>
+
                 <thead>
                     <tr>
                         <th>Time</th>
@@ -326,14 +567,19 @@ app.get("/", (req, res) => {
                 <tbody>
                     ${recentRows}
                 </tbody>
+
             </table>
+
         </div>
 
         <div class="footer">
-            TT Tools Analytics
+            TT Tools Analytics • Auto-refreshes every 30 seconds
         </div>
+
     </div>
+
 </body>
+
 </html>
     `);
 });
@@ -351,6 +597,33 @@ function formatTimestamp(timestamp) {
     return new Date(timestamp).toLocaleString("en-IE", {
         timeZone: "Europe/Dublin",
     });
+}
+
+function formatUptime(totalSeconds) {
+    if (
+        totalSeconds === undefined ||
+        totalSeconds === null
+    ) {
+        return "Unknown";
+    }
+
+    const days =
+        Math.floor(totalSeconds / 86400);
+
+    const hours =
+        Math.floor(
+            (totalSeconds % 86400) / 3600
+        );
+
+    const minutes =
+        Math.floor(
+            (totalSeconds % 3600) / 60
+        );
+
+    const seconds =
+        totalSeconds % 60;
+
+    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
 }
 
 app.listen(PORT, "0.0.0.0", () => {

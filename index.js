@@ -14,7 +14,9 @@ const client = new Client({
 
 const { startStreakRefresher } = require("./services/streakRefresher");
 const { startStreakReminderChecker } = require("./services/reminders");
-const logger = require('./services/logger');
+const { startHealthWriter } = require("./services/healthWriter");
+
+const logger = require("./services/logger");
 const { logCommandUsage } = require("./utils/stats");
 
 client.commands = new Collection();
@@ -30,7 +32,7 @@ const healthCommand = require("./commands/health");
 const restartCommand = require("./commands/restartbot");
 const statsCommand = require("./commands/stats");
 const serversCommand = require("./commands/servers");
-const suggestCommand = require('./commands/suggest');
+const suggestCommand = require("./commands/suggest");
 const refreshSotdCommand = require("./commands/refreshsotd");
 const unregisterCommand = require("./commands/unregister");
 
@@ -62,10 +64,9 @@ client.once("clientReady", () => {
     logger.setClient(client);
     logger.important(`Bot logged in as ${client.user.tag}`);
 
-    console.log(require("fs").readdirSync("/"));
-
     startStreakRefresher(client);
     startStreakReminderChecker(client);
+    startHealthWriter(client);
 });
 
 // Handles slash command interactions
@@ -80,7 +81,6 @@ client.on("interactionCreate", async interaction => {
         `[${timestamp}] [COMMAND] /${interaction.commandName} | User: ${interaction.user.tag} (${interaction.user.id}) | Server: ${interaction.guild?.name || "DM"}`
     );
 
-    // Save command usage statistics
     logCommandUsage(interaction);
 
     const command = client.commands.get(interaction.commandName);
@@ -108,12 +108,12 @@ client.on("interactionCreate", async interaction => {
     }
 });
 
-process.on('unhandledRejection', error => {
-    logger.error('Unhandled promise rejection', error);
+process.on("unhandledRejection", error => {
+    logger.error("Unhandled promise rejection", error);
 });
 
-process.on('uncaughtException', error => {
-    logger.error('Uncaught exception', error);
+process.on("uncaughtException", error => {
+    logger.error("Uncaught exception", error);
 });
 
 // Log in to discord
