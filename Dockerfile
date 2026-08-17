@@ -9,6 +9,4 @@ RUN npm ci --omit=dev
 
 COPY . .
 
-RUN chmod +x /app/run.sh
-
-CMD ["/app/run.sh"]
+CMD ["node", "index.js"]
