@@ -167,10 +167,35 @@ async function fetchUserData(apiKey, tycoonUserId) {
     );
 }
 
+/*
+ * =========================
+ * SOTD
+ * =========================
+ */
+
 let cachedSotd = null;
 let cachedSotdFetchedAt = 0;
+let cachedSotdDayKey = null;
 
 const SOTD_CACHE_TIME = 60 * 60 * 1000;
+const SOTD_ROLLOVER_DELAY = 15 * 60 * 1000;
+
+/*
+ * SOTD does not always update exactly at 00:00 UTC.
+ *
+ * By subtracting 15 minutes before working out the date,
+ * the bot treats:
+ *
+ * 00:00 - 00:14 UTC = previous SOTD day
+ * 00:15 onwards      = new SOTD day
+ */
+function getSotdDayKey() {
+    const now = new Date(
+        Date.now() - SOTD_ROLLOVER_DELAY
+    );
+
+    return now.toISOString().slice(0, 10);
+}
 
 async function fetchSotd(forceRefresh = false) {
     if (!TYCOON_API_KEY) {
@@ -179,12 +204,46 @@ async function fetchSotd(forceRefresh = false) {
         );
     }
 
+    const currentDayKey = getSotdDayKey();
+
+    const cacheAge =
+        Date.now() - cachedSotdFetchedAt;
+
     const cacheIsValid =
         cachedSotd &&
-        Date.now() - cachedSotdFetchedAt < SOTD_CACHE_TIME;
+        cachedSotdDayKey === currentDayKey &&
+        cacheAge < SOTD_CACHE_TIME;
 
     if (!forceRefresh && cacheIsValid) {
         return cachedSotd;
+    }
+
+    /*
+     * During the 15-minute rollover window, keep using the
+     * previous cached SOTD even if its normal 1-hour cache
+     * has expired.
+     *
+     * At 00:15 UTC the day key changes, which forces a fresh
+     * API request for the new SOTD.
+     */
+    if (
+        !forceRefresh &&
+        cachedSotd &&
+        cachedSotdDayKey === currentDayKey
+    ) {
+        const now = new Date();
+
+        if (
+            now.getUTCHours() === 0 &&
+            now.getUTCMinutes() < 15
+        ) {
+            console.log(
+                '[TYCOON API] SOTD rollover delay active - ' +
+                'using previous cached SOTD'
+            );
+
+            return cachedSotd;
+        }
     }
 
     let lastError;
@@ -233,10 +292,15 @@ async function fetchSotd(forceRefresh = false) {
 
             cachedSotd = sotd;
             cachedSotdFetchedAt = Date.now();
+            cachedSotdDayKey = currentDayKey;
 
             console.log(
                 `[TYCOON API] Current SOTD: ` +
                 `${sotd.skill} +${sotd.bonus}%`
+            );
+
+            console.log(
+                `[TYCOON API] SOTD day key: ${cachedSotdDayKey}`
             );
 
             return sotd;
