@@ -11,7 +11,11 @@ const {
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
 });
+
 const { startStreakRefresher } = require("./services/streakRefresher");
+const { startStreakReminderChecker } = require("./services/reminders");
+const logger = require('./services/logger');
+const { logCommandUsage } = require("./utils/stats");
 
 client.commands = new Collection();
 
@@ -22,8 +26,6 @@ const fishxpCommand = require("./commands/fishxp");
 const bearxpCommand = require("./commands/bearxp");
 const streakstatus = require("./commands/streakstatus");
 const register = require("./commands/register");
-const { startStreakReminderChecker } = require("./services/reminders");
-const logger = require('./services/logger');
 const healthCommand = require("./commands/health");
 const restartCommand = require("./commands/restartbot");
 const statsCommand = require("./commands/stats");
@@ -61,6 +63,7 @@ client.once("clientReady", () => {
     logger.important(`Bot logged in as ${client.user.tag}`);
 
     console.log(require("fs").readdirSync("/"));
+
     startStreakRefresher(client);
     startStreakReminderChecker(client);
 });
@@ -76,6 +79,10 @@ client.on("interactionCreate", async interaction => {
     console.log(
         `[${timestamp}] [COMMAND] /${interaction.commandName} | User: ${interaction.user.tag} (${interaction.user.id}) | Server: ${interaction.guild?.name || "DM"}`
     );
+
+    // Save command usage statistics
+    logCommandUsage(interaction);
+
     const command = client.commands.get(interaction.commandName);
 
     if (!command) return;
