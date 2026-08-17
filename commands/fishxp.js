@@ -80,7 +80,6 @@ module.exports = {
 
             console.log("[SOTD]", sotd);
 
-            // We'll replace this once we know the exact aptitude value.
             if (sotd.skill.toLowerCase().includes("fish")) {
                 baseXp += sotd.bonus;
                 sotdBonus = sotd.bonus;
@@ -95,14 +94,16 @@ module.exports = {
         const xpRemaining = targetXp - currentXp;
 
 
-        // Fish are sold in batches of 10.
-        const fishPerSale = 10;
-        const baseXpPerSale = 0.05;
-        const bxpUsedPerSale = 0.5;
+        const fishPerSale = 10000;
+        const baseXpPerSale = 50;
+        const bxpUsedPerSale = 500;
 
         //Calculations
-        const xpPerSaleNoBonus = baseXpPerSale * (1 + (baseXp / 100));
-        const xpPerSaleWithBonus = xpPerSaleNoBonus + baseXpPerSale;
+        const xpPerSaleNoBonus =
+            baseXpPerSale * (1 + (baseXp / 100));
+
+        const xpPerSaleWithBonus =
+            xpPerSaleNoBonus * 2;
 
         const salesWithBonus = Math.floor(bxpAvailable / bxpUsedPerSale);
         const xpCoveredByBonusSales = salesWithBonus * xpPerSaleWithBonus;
