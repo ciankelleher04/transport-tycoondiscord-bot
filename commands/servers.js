@@ -16,24 +16,65 @@ module.exports = {
             });
         }
 
-        const serverList = interaction.client.guilds.cache
-            .map(guild => {
-                return [
+        await interaction.deferReply({
+            ephemeral: true,
+        });
+
+        const guilds = [...interaction.client.guilds.cache.values()];
+
+        if (guilds.length === 0) {
+            return interaction.editReply({
+                content: "The bot is not connected to any servers.",
+            });
+        }
+
+        const serverEntries = [];
+
+        for (const guild of guilds) {
+            let ownerName = "Unknown";
+            let ownerId = guild.ownerId ?? "Unknown";
+
+            try {
+                const owner = await guild.fetchOwner();
+
+                ownerName = owner.user.tag;
+                ownerId = owner.id;
+            } catch (error) {
+                console.error(
+                    `[SERVERS] Failed to fetch owner for ${guild.name}:`,
+                    error.message
+                );
+            }
+
+            const joinedTimestamp = guild.joinedTimestamp;
+
+            const joinedText = joinedTimestamp
+                ? `<t:${Math.floor(joinedTimestamp / 1000)}:R>`
+                : "Unknown";
+
+            serverEntries.push(
+                [
                     `**${guild.name}**`,
-                    `Members: ${guild.memberCount}`,
+                    `Owner: **${ownerName}**`,
+                    `Owner ID: \`${ownerId}\``,
+                    `Members: **${guild.memberCount}**`,
                     `Server ID: \`${guild.id}\``,
-                ].join("\n");
-            })
-            .join("\n\n");
+                    `Bot joined: ${joinedText}`,
+                ].join("\n")
+            );
+        }
+
+        const serverList = serverEntries.join("\n\n");
 
         const embed = new EmbedBuilder()
-            .setTitle(`🖥️ TT Tools Servers (${interaction.client.guilds.cache.size})`)
-            .setDescription(serverList || "The bot is not connected to any servers.")
+            .setTitle(
+                `🖥️ TT Tools Servers (${interaction.client.guilds.cache.size})`
+            )
+            .setDescription(serverList)
             .setTimestamp();
 
-        await interaction.reply({
+        await interaction.editReply({
             embeds: [embed],
-            ephemeral: true,
         });
     },
 };
