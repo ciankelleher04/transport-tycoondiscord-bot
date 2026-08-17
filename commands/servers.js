@@ -3,6 +3,10 @@ const {
     EmbedBuilder,
 } = require("discord.js");
 
+const {
+    getServerCommandCount,
+} = require("../utils/stats");
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("servers")
@@ -52,12 +56,15 @@ module.exports = {
                 ? `<t:${Math.floor(joinedTimestamp / 1000)}:R>`
                 : "Unknown";
 
+            const commandCount = getServerCommandCount(guild.id);
+
             serverEntries.push(
                 [
                     `**${guild.name}**`,
                     `Owner: **${ownerName}**`,
                     `Owner ID: \`${ownerId}\``,
                     `Members: **${guild.memberCount}**`,
+                    `Commands used: **${commandCount}**`,
                     `Server ID: \`${guild.id}\``,
                     `Bot joined: ${joinedText}`,
                 ].join("\n")
@@ -71,6 +78,9 @@ module.exports = {
                 `🖥️ TT Tools Servers (${interaction.client.guilds.cache.size})`
             )
             .setDescription(serverList)
+            .setFooter({
+                text: "Command counts are since persistent tracking was enabled",
+            })
             .setTimestamp();
 
         await interaction.editReply({

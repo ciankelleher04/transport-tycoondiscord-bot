@@ -72,10 +72,19 @@ function getUniqueServers() {
     `).get().count;
 }
 
+function getServerCommandCount(guildId) {
+    return db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM command_usage
+        WHERE guild_id = ?
+    `).get(guildId).count;
+}
+
 module.exports = {
     logCommandUsage,
     getTotalCommands,
     getCommandCounts,
     getUniqueUsers,
     getUniqueServers,
+    getServerCommandCount,
 };
