@@ -18,7 +18,6 @@ const streakNames = {
     ems: '🚑 EMS',
     firefighter: '🚒 Firefighter',
     garbage: '🗑️ Garbage',
-    deadliest: '🎣 Deadliest Catch',
     courier: '📦 Courier',
     rts: '🏢 RTS',
     rts_air: '✈️ RTS Air',
@@ -56,10 +55,11 @@ module.exports = {
             const now = Date.now();
 
             const activeStreaks = Object.entries(streaks)
-                .filter(([, info]) => {
+                .filter(([key, info]) => {
                     const expiryDate = getStreakExpiryDate(info.last_updated_day);
 
                     return (
+                        key in streakNames &&
                         Number(info.current) > 0 &&
                         expiryDate.getTime() > now
                     );

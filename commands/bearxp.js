@@ -60,25 +60,26 @@ module.exports = {
 
     async execute(interaction) {
 
-        //Get command options
+        // Get command options
         const targetXp = parseInt(interaction.options.getString("target"));
         const currentXp = interaction.options.getInteger("current_xp");
         const enteredBaseXp = interaction.options.getNumber("base_xp");
         const usingBonusXp = interaction.options.getBoolean("bonus_xp");
-        const bxpAvailable = interaction.options.getInteger("bonus_xp_amount") || 0;
+        const bxpAvailable =
+            interaction.options.getInteger("bonus_xp_amount") || 0;
 
         let baseXp = enteredBaseXp;
 
         let sotdApplied = false;
         let sotdBonus = 0;
 
+        // Check SOTD
         try {
             const sotd = await fetchSotd();
 
             console.log("[SOTD]", sotd);
 
-            // We'll replace this once we know the exact aptitude value.
-            if (sotd.skill.toLowerCase().includes("hunt")) {
+            if (sotd.skill.toLowerCase() === "skill") {
                 baseXp += sotd.bonus;
                 sotdBonus = sotd.bonus;
                 sotdApplied = true;
@@ -88,42 +89,63 @@ module.exports = {
             console.error("Failed to fetch SOTD:", error);
         }
 
-        //Constants
+        // Constants
         const xpRemaining = targetXp - currentXp;
 
         const baseBearXp = 6;
         const bxpUsedPerBear = 60;
 
-        //XP calculations
-        const xpPerBearNoBonus = baseBearXp * (1 + (baseXp / 100));
-        const xpPerBearWithBonus = xpPerBearNoBonus * 2;
+        // XP calculations
+        const xpPerBearNoBonus =
+            baseBearXp * (1 + (baseXp / 100));
 
-        const bearsWithBonus = Math.floor(bxpAvailable / bxpUsedPerBear);
-        const xpCoveredByBonusBears = bearsWithBonus * xpPerBearWithBonus;
+        const xpPerBearWithBonus =
+            xpPerBearNoBonus * 2;
+
+        const bearsWithBonus =
+            Math.floor(bxpAvailable / bxpUsedPerBear);
+
+        const xpCoveredByBonusBears =
+            bearsWithBonus * xpPerBearWithBonus;
 
         let bearsRemaining;
 
         if (usingBonusXp && xpCoveredByBonusBears >= xpRemaining) {
-            bearsRemaining = Math.ceil(xpRemaining / xpPerBearWithBonus);
+
+            bearsRemaining =
+                Math.ceil(xpRemaining / xpPerBearWithBonus);
+
         } else if (usingBonusXp) {
-            const xpLeftAfterBonus = xpRemaining - xpCoveredByBonusBears;
-            bearsRemaining = bearsWithBonus + Math.ceil(xpLeftAfterBonus / xpPerBearNoBonus);
+
+            const xpLeftAfterBonus =
+                xpRemaining - xpCoveredByBonusBears;
+
+            bearsRemaining =
+                bearsWithBonus +
+                Math.ceil(xpLeftAfterBonus / xpPerBearNoBonus);
+
         } else {
-            bearsRemaining = Math.ceil(xpRemaining / xpPerBearNoBonus);
+
+            bearsRemaining =
+                Math.ceil(xpRemaining / xpPerBearNoBonus);
         }
 
-        const bearsIfAllBonus = Math.ceil(xpRemaining / xpPerBearWithBonus);
-        const totalBxpNeeded = bearsIfAllBonus * bxpUsedPerBear;
-        const bxpNeeded = Math.max(totalBxpNeeded - bxpAvailable, 0);
+        const bearsIfAllBonus =
+            Math.ceil(xpRemaining / xpPerBearWithBonus);
 
+        const totalBxpNeeded =
+            bearsIfAllBonus * bxpUsedPerBear;
 
-        //embed
+        const bxpNeeded =
+            Math.max(totalBxpNeeded - bxpAvailable, 0);
+
+        // Embed
         const bearEmbed = new EmbedBuilder()
             .setTitle("🐻 Bear XP Calculator")
             .setTimestamp()
             .setColor("#C47F2B")
             .setFooter({
-                text: `Requested by ${interaction.user.username} • ⚠️ Does not include SOTD bonus`,
+                text: `Requested by ${interaction.user.username}`,
             })
             .setAuthor({
                 name: interaction.client.user.username,
@@ -166,11 +188,13 @@ module.exports = {
                     inline: true,
                 },
                 {
-                    name: "🛒  BXP Still Needed",
+                    name: "🛒 BXP Still Needed",
                     value: bxpNeeded.toLocaleString(),
                     inline: true,
                 },
             );
+
+        // Show SOTD field only when Hunting is SOTD
         if (sotdApplied) {
             bearEmbed.addFields({
                 name: "🐻 SOTD Bonus",
@@ -178,9 +202,10 @@ module.exports = {
                 inline: true,
             });
         }
-        //Reply
+
+        // Reply
         await interaction.reply({
-            embeds: [bearEmbed]
+            embeds: [bearEmbed],
         });
     },
 };
