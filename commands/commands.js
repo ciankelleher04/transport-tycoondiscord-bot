@@ -12,9 +12,11 @@ module.exports = {
                 [
                     '`/ping` — Check whether the bot is online',
                     '`/register` — Register your Transport Tycoon API key',
+                    '`/unregister` — Unregister API key for streak reminder',
                     '`/streakstatus` — Show your active job streaks',
                     '`/fishxp` — Calculate Fish XP requirements',
                     '`/bearxp` — Calculate hunting XP requirements',
+                    '`/suggest` — Suggest new bot ideas/bot commands',
                 ].join('\n')
             );
 
