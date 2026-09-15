@@ -1,7 +1,7 @@
-//Load environment variables
+// Load environment variables
 require("dotenv").config();
 
-//import Discord.js classes
+// Import Discord.js classes
 const {
     Client,
     GatewayIntentBits,
@@ -12,21 +12,32 @@ const client = new Client({
     intents: [GatewayIntentBits.Guilds],
 });
 
-const { startStreakRefresher } = require("./services/streakRefresher");
-const { startStreakReminderChecker } = require("./services/reminders");
-const { startHealthWriter } = require("./services/healthWriter");
+const { startStreakRefresher } =
+    require("./services/streakRefresher");
+
+const { startStreakReminderChecker } =
+    require("./services/reminders");
+
+const { startHealthWriter } =
+    require("./services/healthWriter");
+
+const {
+    loadUsers,
+    saveUsers,
+} = require("./utils/tycoon");
 
 const logger = require("./services/logger");
 const { logCommandUsage } = require("./utils/stats");
 
 client.commands = new Collection();
 
-//import commands
+// Import commands
 const pingCommand = require("./commands/ping");
 const commandsCommand = require("./commands/commands");
 const fishxpCommand = require("./commands/fishxp");
 const bearxpCommand = require("./commands/bearxp");
 const streakstatus = require("./commands/streakstatus");
+const streaksettings = require("./commands/streaksettings");
 const register = require("./commands/register");
 const healthCommand = require("./commands/health");
 const restartCommand = require("./commands/restartbot");
@@ -42,6 +53,7 @@ const activeCommands = [
     fishxpCommand,
     bearxpCommand,
     streakstatus,
+    streaksettings,
     register,
     healthCommand,
     restartCommand,
@@ -69,13 +81,74 @@ client.once("clientReady", () => {
     startHealthWriter(client);
 });
 
-// Handles slash command interactions
+// Handles Discord interactions
 client.on("interactionCreate", async interaction => {
+
+    /*
+     * =========================
+     * STREAK SETTINGS MENU
+     * =========================
+     */
+    if (interaction.isStringSelectMenu()) {
+        if (
+            interaction.customId ===
+            "streak_notification_settings"
+        ) {
+            const users = loadUsers();
+            const user = users[interaction.user.id];
+
+            if (!user) {
+                return interaction.reply({
+                    content:
+                        "You are not registered yet. Use `/register` first.",
+                    ephemeral: true,
+                });
+            }
+
+            /*
+             * interaction.values contains the selected job keys.
+             *
+             * Example:
+             * ["hunter", "deadliest", "mechanic"]
+             */
+            user.streakNotifications =
+                interaction.values;
+
+            saveUsers(users);
+
+            const count =
+                interaction.values.length;
+
+            console.log(
+                `[STREAK SETTINGS] ${interaction.user.tag} (${interaction.user.id}) enabled ${count} streak notification jobs.`
+            );
+
+            return interaction.update({
+                content:
+                    count === 0
+                        ? "🔕 All streak notifications have been disabled."
+                        : `✅ Streak notifications updated. You have **${count}** job${count === 1 ? "" : "s"} enabled.`,
+                embeds: [],
+                components: [],
+            });
+        }
+
+        return;
+    }
+
+    /*
+     * =========================
+     * SLASH COMMANDS
+     * =========================
+     */
     if (!interaction.isChatInputCommand()) return;
 
-    const timestamp = new Date().toLocaleTimeString("en-IE", {
-        hour12: false,
-    });
+    const timestamp = new Date().toLocaleTimeString(
+        "en-IE",
+        {
+            hour12: false,
+        }
+    );
 
     console.log(
         `[${timestamp}] [COMMAND] /${interaction.commandName} | User: ${interaction.user.tag} (${interaction.user.id}) | Server: ${interaction.guild?.name || "DM"}`
@@ -83,7 +156,8 @@ client.on("interactionCreate", async interaction => {
 
     logCommandUsage(interaction);
 
-    const command = client.commands.get(interaction.commandName);
+    const command =
+        client.commands.get(interaction.commandName);
 
     if (!command) return;
 
@@ -96,25 +170,39 @@ client.on("interactionCreate", async interaction => {
         );
 
         const errorMessage = {
-            content: "There was an error while running this command.",
+            content:
+                "There was an error while running this command.",
             ephemeral: true,
         };
 
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(errorMessage);
+        if (
+            interaction.replied ||
+            interaction.deferred
+        ) {
+            await interaction.followUp(
+                errorMessage
+            );
         } else {
-            await interaction.reply(errorMessage);
+            await interaction.reply(
+                errorMessage
+            );
         }
     }
 });
 
 process.on("unhandledRejection", error => {
-    logger.error("Unhandled promise rejection", error);
+    logger.error(
+        "Unhandled promise rejection",
+        error
+    );
 });
 
 process.on("uncaughtException", error => {
-    logger.error("Uncaught exception", error);
+    logger.error(
+        "Uncaught exception",
+        error
+    );
 });
 
-// Log in to discord
+// Log in to Discord
 client.login(process.env.TOKEN);

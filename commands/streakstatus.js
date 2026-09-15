@@ -5,24 +5,8 @@ const {
     getStreakExpiryDate,
     formatTimeRemaining,
     fetchUserData,
+    STREAK_JOBS,
 } = require('../utils/tycoon');
-
-const streakNames = {
-    cabbie: '🚕 Cabbie',
-    helipilot: '🚁 Heli Pilot',
-    hunter: '🦌 Hunter',
-    mechanic: '🔧 Mechanic',
-    bus: '🚌 Bus',
-    conductor: '🚆 Conductor',
-    airline: '✈️ Airline',
-    ems: '🚑 EMS',
-    firefighter: '🚒 Firefighter',
-    garbage: '🗑️ Garbage',
-    courier: '📦 Courier',
-    rts: '🏢 RTS',
-    rts_air: '✈️ RTS Air',
-};
-
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -44,49 +28,62 @@ module.exports = {
         const { apiKey, tycoonUserId } = savedUser;
 
         try {
-            const { data: result, chargesLeft } = await fetchUserData(apiKey, tycoonUserId);
+            const { data: result, chargesLeft } = await fetchUserData(
+                apiKey,
+                tycoonUserId
+            );
 
             const streaks = result?.data?.streaks;
 
-            console.log('STREAK KEYS:', Object.keys(streaks ?? {}));
-            console.log('STREAK DATA:', streaks);
-
             if (!streaks) {
-                return interaction.editReply('No streak data found in the API response.');
+                return interaction.editReply(
+                    'No streak data found in the API response.'
+                );
             }
 
             const now = Date.now();
 
             const activeStreaks = Object.entries(streaks)
                 .filter(([key, info]) => {
-                    const expiryDate = getStreakExpiryDate(info.last_updated_day);
+                    const expiryDate =
+                        getStreakExpiryDate(info.last_updated_day);
 
                     return (
-                        key in streakNames &&
+                        key in STREAK_JOBS &&
                         Number(info.current) > 0 &&
                         expiryDate.getTime() > now
                     );
                 })
-                .sort((a, b) => Number(b[1].current) - Number(a[1].current));
+                .sort(
+                    (a, b) =>
+                        Number(b[1].current) -
+                        Number(a[1].current)
+                );
 
             if (activeStreaks.length === 0) {
                 return interaction.editReply(
                     'You do not currently have any active job streaks.'
                 );
             }
+
             const description = activeStreaks
                 .map(([key, info]) => {
-                    const name = streakNames[key] ?? key;
+                    const name = STREAK_JOBS[key] ?? key;
 
-                    const expiryDate = getStreakExpiryDate(info.last_updated_day);
-                    const timeRemaining = formatTimeRemaining(expiryDate);
+                    const expiryDate =
+                        getStreakExpiryDate(info.last_updated_day);
 
-                    return `**${name}**
-Current: ${info.current} 
-Record: ${info.record}
-Expires in: ${timeRemaining}`;
+                    const timeRemaining =
+                        formatTimeRemaining(expiryDate);
+
+                    return (
+                        `**${name}**\n` +
+                        `Current: ${info.current}\n` +
+                        `Record: ${info.record}\n` +
+                        `Expires in: ${timeRemaining}`
+                    );
                 })
-                .join("\n\n");
+                .join('\n\n');
 
             const embed = new EmbedBuilder()
                 .setTitle('🔥 Current Transport Tycoon Streaks')
@@ -95,7 +92,9 @@ Expires in: ${timeRemaining}`;
                     text: `API charges left: ${chargesLeft ?? 'unknown'}`,
                 });
 
-            await interaction.editReply({ embeds: [embed] });
+            await interaction.editReply({
+                embeds: [embed],
+            });
         } catch (error) {
             console.error('Streak status failed:', error);
 

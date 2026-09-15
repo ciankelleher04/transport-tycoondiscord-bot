@@ -14,6 +14,50 @@ const USERS_FILE =
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+/*
+ * =========================
+ * STREAK JOBS
+ * =========================
+ *
+ * This is the master list of streak jobs used by:
+ *
+ * - /streakstatus
+ * - /streaksettings
+ * - streak reminders
+ *
+ * If another streak job is added in future, add it here.
+ */
+const STREAK_JOBS = {
+    cabbie: '🚕 Cabbie',
+    helipilot: '🚁 Heli Pilot',
+    hunter: '🦌 Hunter',
+    mechanic: '🔧 Mechanic',
+    bus: '🚌 Bus',
+    conductor: '🚆 Conductor',
+    airline: '✈️ Airline',
+    ems: '🚑 EMS',
+    firefighter: '🚒 Firefighter',
+    garbage: '🗑️ Garbage',
+    courier: '📦 Courier',
+    rts: '🏢 RTS',
+    rts_air: '✈️ RTS Air',
+    deadliest: '🦀 Deadliest Catch',
+};
+
+function wantsStreakNotification(user, streakName) {
+    /*
+     * Existing users will not have streakNotifications yet.
+     *
+     * Treat that as every notification being enabled so nobody
+     * suddenly stops receiving reminders after this update.
+     */
+    if (!Array.isArray(user.streakNotifications)) {
+        return true;
+    }
+
+    return user.streakNotifications.includes(streakName);
+}
+
 function buildStoredStreaks(apiStreaks, oldStoredStreaks = {}) {
     const storedStreaks = {};
 
@@ -106,7 +150,6 @@ async function fetchUserData(apiKey, tycoonUserId) {
             /*
              * A 4xx response usually means the request, API key,
              * user ID or available charges are the problem.
-             * Retrying against beta would probably return the same error.
              */
             if (response.status >= 400 && response.status < 500) {
                 const errorBody = await response.text();
@@ -154,10 +197,6 @@ async function fetchUserData(apiKey, tycoonUserId) {
             if (error.message.startsWith('API request rejected:')) {
                 throw error;
             }
-
-            /*
-             * Otherwise, the loop continues and tries the next API.
-             */
         }
     }
 
@@ -222,9 +261,6 @@ async function fetchSotd(forceRefresh = false) {
      * During the 15-minute rollover window, keep using the
      * previous cached SOTD even if its normal 1-hour cache
      * has expired.
-     *
-     * At 00:15 UTC the day key changes, which forces a fresh
-     * API request for the new SOTD.
      */
     if (
         !forceRefresh &&
@@ -344,4 +380,6 @@ module.exports = {
     fetchUserData,
     fetchSotd,
     buildStoredStreaks,
+    STREAK_JOBS,
+    wantsStreakNotification,
 };
