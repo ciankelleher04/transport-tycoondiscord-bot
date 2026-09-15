@@ -1,0 +1,22 @@
+services:
+  bot:
+    build: .
+    container_name: transport-tycoon-bot
+    restart: "no"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+
+  stats-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: tt-tools-stats-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+    ports:
+      - "3000:3000"

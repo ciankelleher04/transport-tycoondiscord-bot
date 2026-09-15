@@ -9,6 +9,7 @@ const USERNAME = process.env.STATS_USERNAME;
 const PASSWORD = process.env.STATS_PASSWORD;
 
 const HEALTH_FILE = "/data/health.json";
+const HA_STATUS_FILE = "/data/ha-status.json";
 
 const db = new Database("/data/stats.db", {
     readonly: true,
@@ -111,6 +112,77 @@ app.get("/", (req, res) => {
     const lastHealthUpdate = health?.updatedAt
         ? formatTimestamp(health.updatedAt)
         : "Never";
+
+    /*
+     * =========================
+     * HA / infrastructure status
+     * =========================
+     */
+
+    let ha = null;
+
+    try {
+        if (fs.existsSync(HA_STATUS_FILE)) {
+            ha = JSON.parse(
+                fs.readFileSync(HA_STATUS_FILE, "utf8")
+            );
+        }
+    } catch (error) {
+        console.error(
+            "[STATS WEB] Failed to read HA status file:",
+            error
+        );
+    }
+
+    const activeNode =
+        ha?.activeNode === "vps"
+            ? "VPS"
+            : ha?.activeNode === "home"
+                ? "Home Server"
+                : "Unknown";
+
+    const homeStatus =
+        ha?.homeStatus ?? "unknown";
+
+    const vpsStatus =
+        ha?.vpsStatus ?? "unknown";
+
+    const lastHeartbeat =
+        ha?.lastHeartbeat
+            ? formatTimeAgo(ha.lastHeartbeat)
+            : "Never";
+
+    const lastBackup =
+        ha?.lastBackup
+            ? formatTimeAgo(ha.lastBackup)
+            : "Never";
+
+    const lastFailover =
+        ha?.lastFailover
+            ? formatTimestamp(ha.lastFailover)
+            : "Never";
+
+    const lastFailback =
+        ha?.lastFailback
+            ? formatTimestamp(ha.lastFailback)
+            : "Never";
+
+    const failoverCount =
+        ha?.failoverCount ?? 0;
+
+    const haHealthy =
+        ha?.activeNode === "home" &&
+        ha?.homeStatus === "active" &&
+        ha?.vpsStatus === "standby";
+
+    const haStatusClass =
+        haHealthy ? "online" : "warning";
+
+    const haStatusText =
+        haHealthy ? "Healthy" : "Failover Active";
+
+    const haStatusIcon =
+        haHealthy ? "🟢" : "🟠";
 
     /*
      * =========================
@@ -292,6 +364,10 @@ app.get("/", (req, res) => {
             color: #f87171;
         }
 
+        .warning {
+            color: #fbbf24;
+        }
+
         .health-grid {
             display: grid;
             grid-template-columns:
@@ -460,6 +536,106 @@ app.get("/", (req, res) => {
 
         </div>
 
+        <div class="health-card">
+
+            <div class="health-header">
+
+                <div class="health-title">
+                    🖥️ Infrastructure / High Availability
+                </div>
+
+                <div class="status ${haStatusClass}">
+                    ${haStatusIcon} ${haStatusText}
+                </div>
+
+            </div>
+
+            <div class="health-grid">
+
+                <div class="health-item">
+                    <div class="health-label">
+                        Active Node
+                    </div>
+
+                    <div class="health-value">
+                        ${activeNode}
+                    </div>
+                </div>
+
+                <div class="health-item">
+                    <div class="health-label">
+                        Home Primary
+                    </div>
+
+                    <div class="health-value">
+                        ${escapeHtml(homeStatus)}
+                    </div>
+                </div>
+
+                <div class="health-item">
+                    <div class="health-label">
+                        VPS Standby
+                    </div>
+
+                    <div class="health-value">
+                        ${escapeHtml(vpsStatus)}
+                    </div>
+                </div>
+
+                <div class="health-item">
+                    <div class="health-label">
+                        Last Heartbeat
+                    </div>
+
+                    <div class="health-value">
+                        ${lastHeartbeat}
+                    </div>
+                </div>
+
+                <div class="health-item">
+                    <div class="health-label">
+                        Last Backup
+                    </div>
+
+                    <div class="health-value">
+                        ${lastBackup}
+                    </div>
+                </div>
+
+                <div class="health-item">
+                    <div class="health-label">
+                        Last Failover
+                    </div>
+
+                    <div class="health-value">
+                        ${lastFailover}
+                    </div>
+                </div>
+
+                <div class="health-item">
+                    <div class="health-label">
+                        Last Failback
+                    </div>
+
+                    <div class="health-value">
+                        ${lastFailback}
+                    </div>
+                </div>
+
+                <div class="health-item">
+                    <div class="health-label">
+                        Failover Count
+                    </div>
+
+                    <div class="health-value">
+                        ${failoverCount}
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
         <div class="cards">
 
             <div class="card">
@@ -597,6 +773,35 @@ function formatTimestamp(timestamp) {
     return new Date(timestamp).toLocaleString("en-IE", {
         timeZone: "Europe/Dublin",
     });
+}
+
+function formatTimeAgo(timestamp) {
+    const ageSeconds = Math.max(
+        0,
+        Math.floor(
+            (Date.now() - new Date(timestamp).getTime()) / 1000
+        )
+    );
+
+    if (ageSeconds < 60) {
+        return `${ageSeconds}s ago`;
+    }
+
+    const minutes = Math.floor(ageSeconds / 60);
+
+    if (minutes < 60) {
+        return `${minutes}m ago`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+
+    if (hours < 24) {
+        return `${hours}h ago`;
+    }
+
+    const days = Math.floor(hours / 24);
+
+    return `${days}d ago`;
 }
 
 function formatUptime(totalSeconds) {
