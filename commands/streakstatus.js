@@ -48,6 +48,9 @@ module.exports = {
 
             const streaks = result?.data?.streaks;
 
+            console.log('STREAK KEYS:', Object.keys(streaks ?? {}));
+            console.log('STREAK DATA:', streaks);
+
             if (!streaks) {
                 return interaction.editReply('No streak data found in the API response.');
             }
