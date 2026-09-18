@@ -56,6 +56,13 @@ function requireAuth(req, res, next) {
     next();
 }
 
+app.get("/health", (req, res) => {
+    res.status(200).json({
+        status: "ok",
+        service: "tt-tools-stats",
+    });
+});
+
 app.use(requireAuth);
 
 app.get("/", (req, res) => {
