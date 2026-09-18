@@ -21,6 +21,30 @@ const { startStreakReminderChecker } =
 const { startHealthWriter } =
     require("./services/healthWriter");
 
+function startKumaHeartbeat() {
+    const pushUrl = process.env.KUMA_PUSH_URL;
+
+    if (!pushUrl) {
+        console.log("[KUMA] KUMA_PUSH_URL is not configured; heartbeat disabled.");
+        return;
+    }
+
+    const sendHeartbeat = async () => {
+        try {
+            const response = await fetch(pushUrl);
+            if (!response.ok) {
+                console.error(`[KUMA] Heartbeat failed with HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error("[KUMA] Heartbeat failed:", error.message);
+        }
+    };
+
+    // Report immediately once Discord is ready, then once per minute.
+    sendHeartbeat();
+    setInterval(sendHeartbeat, 60_000);
+}
+
 const {
     loadUsers,
     saveUsers,
@@ -79,6 +103,7 @@ client.once("clientReady", () => {
     startStreakRefresher(client);
     startStreakReminderChecker(client);
     startHealthWriter(client);
+    startKumaHeartbeat();
 });
 
 // Handles Discord interactions
