@@ -22,21 +22,26 @@ const { startHealthWriter } =
     require("./services/healthWriter");
 
 function startKumaHeartbeat() {
-    const pushUrl = process.env.KUMA_PUSH_URL;
+    const pushUrls = [
+        process.env.KUMA_PUSH_URL,
+        process.env.KUMA_OVERALL_PUSH_URL,
+    ].filter(Boolean);
 
-    if (!pushUrl) {
-        console.log("[KUMA] KUMA_PUSH_URL is not configured; heartbeat disabled.");
+    if (pushUrls.length === 0) {
+        console.log("[KUMA] No push URLs are configured; heartbeat disabled.");
         return;
     }
 
     const sendHeartbeat = async () => {
-        try {
-            const response = await fetch(pushUrl);
-            if (!response.ok) {
-                console.error(`[KUMA] Heartbeat failed with HTTP ${response.status}`);
+        for (const pushUrl of pushUrls) {
+            try {
+                const response = await fetch(pushUrl);
+                if (!response.ok) {
+                    console.error(`[KUMA] Heartbeat failed with HTTP ${response.status}`);
+                }
+            } catch (error) {
+                console.error("[KUMA] Heartbeat failed:", error.message);
             }
-        } catch (error) {
-            console.error("[KUMA] Heartbeat failed:", error.message);
         }
     };
 
