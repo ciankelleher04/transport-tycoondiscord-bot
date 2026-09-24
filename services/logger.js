@@ -32,6 +32,20 @@ function redactSecrets(value) {
     return text;
 }
 
+function formatContext(context) {
+    if (!context || typeof context !== "object") {
+        return "";
+    }
+
+    const entries = Object.entries(context)
+        .filter(([, value]) => value !== undefined && value !== null && value !== "")
+        .map(([key, value]) => `${key}=${redactSecrets(value)}`);
+
+    return entries.length > 0
+        ? `\nContext: ${entries.join(" | ")}`
+        : "";
+}
+
 function getAlertKey(level, message) {
     return `${level}:${String(message)
         .toLowerCase()
@@ -91,41 +105,38 @@ async function sendToDiscord(level, message) {
     }
 }
 
-function info(message) {
-    console.log(`[INFO] ${redactSecrets(message)}`);
+function info(message, context = null) {
+    const fullMessage = `${message}${formatContext(context)}`;
+    console.log(`[INFO] ${redactSecrets(fullMessage)}`);
 }
 
-function warn(message, meta = null) {
-    const details = meta ? `\n${meta}` : "";
-    const fullMessage = `${message}${details}`;
+function warn(message, context = null) {
+    const fullMessage = `${message}${formatContext(context)}`;
 
     console.warn(`[WARN] ${redactSecrets(fullMessage)}`);
     void sendToDiscord("WARN", fullMessage);
 }
 
-function error(message, err = null) {
+function error(message, err = null, context = null) {
     const details = err?.stack ?? err?.message ?? err ?? "";
-    const fullMessage = details
-        ? `${message}\n${details}`
-        : message;
+    const fullMessage = `${message}${formatContext(context)}${details ? `\n${details}` : ""}`;
 
     console.error(`[ERROR] ${redactSecrets(fullMessage)}`);
     void sendToDiscord("ERROR", fullMessage);
 }
 
-function critical(message, err = null) {
+function critical(message, err = null, context = null) {
     const details = err?.stack ?? err?.message ?? err ?? "";
-    const fullMessage = details
-        ? `${message}\n${details}`
-        : message;
+    const fullMessage = `${message}${formatContext(context)}${details ? `\n${details}` : ""}`;
 
     console.error(`[CRITICAL] ${redactSecrets(fullMessage)}`);
     void sendToDiscord("CRITICAL", fullMessage);
 }
 
-function important(message) {
-    console.log(`[IMPORTANT] ${redactSecrets(message)}`);
-    void sendToDiscord("INFO", message);
+function important(message, context = null) {
+    const fullMessage = `${message}${formatContext(context)}`;
+    console.log(`[IMPORTANT] ${redactSecrets(fullMessage)}`);
+    void sendToDiscord("INFO", fullMessage);
 }
 
 module.exports = {
