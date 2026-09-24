@@ -103,11 +103,13 @@ for (const command of activeCommands) {
 }
 
 client.once("ready", () => {
+    // Set the client before emitting startup logs so they can reach Discord.
+    logger.setClient(client);
+
     logger.info("Bot is ready!");
     logger.info(`Logged in as ${client.user.tag}`);
     logger.important(`Bot logged in as ${client.user.tag}`);
 
-    logger.setClient(client);
     startStreakRefresher(client);
     startStreakReminderChecker(client);
     startHealthWriter(client);

@@ -1,9 +1,8 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { loadUsers, saveUsers } = require('../utils/tycoon');
+const logger = require('../services/logger');
 
 const BASE_API_URL = 'https://api.tycoon.community';
-
-
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -21,6 +20,14 @@ module.exports = {
 
         const apiKey = interaction.options.getString('api_key');
         const discordId = interaction.user.id;
+        const context = {
+            service: 'registration',
+            command: 'register',
+            userId: discordId,
+            userTag: interaction.user.tag,
+            guildId: interaction.guild?.id,
+            guildName: interaction.guild?.name ?? 'DM',
+        };
 
         try {
             const userResponse = await fetch(`${BASE_API_URL}/snowflake2user/${discordId}`, {
@@ -29,16 +36,21 @@ module.exports = {
                     'X-Tycoon-Key': apiKey,
                     'Content-Type': 'application/json',
                 },
+                signal: AbortSignal.timeout(10_000),
             });
 
             if (!userResponse.ok) {
+                logger.warn(
+                    '[REGISTER] Could not resolve Discord user through Tycoon API.',
+                    { ...context, status: userResponse.status }
+                );
+
                 return interaction.editReply(
                     `Could not find your Transport Tycoon account from your Discord ID.\nAPI error: ${userResponse.status} ${userResponse.statusText}`
                 );
             }
 
             const userData = await userResponse.json();
-            console.log('snowflake2user response:', userData);
 
             const tycoonUserId =
                 userData.user_id ??
@@ -47,6 +59,12 @@ module.exports = {
                 userData.data?.id;
 
             if (!tycoonUserId) {
+                logger.error(
+                    '[REGISTER] Tycoon response did not contain a user ID.',
+                    null,
+                    context
+                );
+
                 return interaction.editReply(
                     'The API worked, but I could not find the Tycoon user ID in the response. Check the bot logs.'
                 );
@@ -58,9 +76,15 @@ module.exports = {
                     'X-Tycoon-Key': apiKey,
                     'Content-Type': 'application/json',
                 },
+                signal: AbortSignal.timeout(10_000),
             });
 
             if (!testResponse.ok) {
+                logger.warn(
+                    '[REGISTER] Tycoon data validation failed.',
+                    { ...context, tycoonUserId, status: testResponse.status }
+                );
+
                 return interaction.editReply(
                     `I found your Tycoon user ID (${tycoonUserId}), but could not fetch your data.\nAPI error: ${testResponse.status} ${testResponse.statusText}`
                 );
@@ -74,14 +98,13 @@ module.exports = {
                     'X-Tycoon-Key': apiKey,
                     'Content-Type': 'application/json',
                 },
+                signal: AbortSignal.timeout(10_000),
             });
 
             let streakData = null;
 
             if (streakResponse.ok) {
                 const streakResult = await streakResponse.json();
-
-                console.log('Initial streak response:', streakResult);
 
                 streakData = {
                     days: streakResult.data?.days ?? 0,
@@ -90,8 +113,9 @@ module.exports = {
                     lastChecked: new Date().toISOString(),
                 };
             } else {
-                console.error(
-                    `Initial streak check failed: ${streakResponse.status} ${streakResponse.statusText}`
+                logger.warn(
+                    '[REGISTER] Initial streak check failed; continuing registration.',
+                    { ...context, tycoonUserId, status: streakResponse.status }
                 );
             }
 
@@ -105,6 +129,11 @@ module.exports = {
 
             saveUsers(users);
 
+            logger.info(
+                '[REGISTER] User registered successfully.',
+                { ...context, tycoonUserId, initialStreakLoaded: Boolean(streakData) }
+            );
+
             await interaction.editReply(
                 `Registered successfully.\n` +
                 `Tycoon user ID: ${tycoonUserId}\n` +
@@ -113,7 +142,7 @@ module.exports = {
                     : 'Your key was saved, but the initial streak check failed.')
             );
         } catch (error) {
-            console.error('Register command failed:', error);
+            logger.error('[REGISTER] Register command failed.', error, context);
 
             await interaction.editReply(
                 'Something went wrong while registering. Check the bot logs.'
