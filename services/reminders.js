@@ -11,6 +11,8 @@ const {
     checkApiChargeReminder,
 } = require('./apiChargeReminders');
 
+const logger = require('./logger');
+
 const REMINDER_STAGES = [
     { label: '12h', ms: 12 * 60 * 60 * 1000 },
     { label: '6h', ms: 6 * 60 * 60 * 1000 },
@@ -24,8 +26,9 @@ async function refreshUserBeforeOneHourReminder(
     user,
     users
 ) {
-    console.log(
-        `[STREAK REMINDERS] 1h reminder due for ${discordId}. Refreshing live data first...`
+    logger.info(
+        `[STREAK REMINDERS] 1h reminder due for ${discordId}. Refreshing live data first...`,
+        { discordId, service: 'streak-reminders' }
     );
 
     try {
@@ -37,8 +40,9 @@ async function refreshUserBeforeOneHourReminder(
         const apiStreaks = result?.data?.streaks;
 
         if (!apiStreaks) {
-            console.log(
-                `[STREAK REMINDERS] No live streak data returned for ${discordId}.`
+            logger.warn(
+                '[STREAK REMINDERS] No live streak data returned.',
+                { discordId, service: 'streak-reminders' }
             );
 
             return false;
@@ -54,15 +58,17 @@ async function refreshUserBeforeOneHourReminder(
 
         users[discordId].chargesLeft = chargesLeft;
 
-        console.log(
-            `[STREAK REMINDERS] Live data refreshed for ${discordId}. Charges left: ${chargesLeft}`
+        logger.info(
+            `[STREAK REMINDERS] Live data refreshed for ${discordId}. Charges left: ${chargesLeft}`,
+            { discordId, service: 'streak-reminders' }
         );
 
         return true;
     } catch (error) {
-        console.error(
-            `[STREAK REMINDERS] Live refresh failed for ${discordId}:`,
-            error
+        logger.error(
+            '[STREAK REMINDERS] Live refresh failed.',
+            error,
+            { discordId, service: 'streak-reminders' }
         );
 
         return false;
@@ -72,7 +78,10 @@ async function refreshUserBeforeOneHourReminder(
 async function checkStreakReminders(client) {
     const users = loadUsers();
 
-    console.log('[STREAK REMINDERS] Checking reminders...');
+    logger.info('[STREAK REMINDERS] Checking reminders...', {
+        service: 'streak-reminders',
+        userCount: Object.keys(users).length,
+    });
 
     for (const [discordId, user] of Object.entries(users)) {
         if (!user.streaks) continue;
@@ -81,17 +90,10 @@ async function checkStreakReminders(client) {
             const [streakName, storedStreak]
             of Object.entries(user.streaks)
         ) {
-            /*
-             * Ignore streak jobs the user has disabled.
-             */
             if (!wantsStreakNotification(user, streakName)) {
                 continue;
             }
 
-            /*
-             * Also ignore unknown streak types that aren't in our
-             * supported job list.
-             */
             if (!(streakName in STREAK_JOBS)) {
                 continue;
             }
@@ -116,10 +118,6 @@ async function checkStreakReminders(client) {
                     timeLeft <= stage.ms &&
                     !streak.remindersSent.includes(stage.label)
                 ) {
-                    /*
-                     * Only make a live API call before the
-                     * 1-hour reminder.
-                     */
                     if (stage.label === '1h') {
                         const refreshed =
                             await refreshUserBeforeOneHourReminder(
@@ -129,55 +127,39 @@ async function checkStreakReminders(client) {
                                 users
                             );
 
-                        /*
-                         * Do not send a possibly incorrect reminder
-                         * if the API refresh failed.
-                         */
                         if (!refreshed) {
                             break;
                         }
 
-                        /*
-                         * Reload this streak from the newly
-                         * refreshed data.
-                         */
                         streak =
                             users[discordId].streaks?.[streakName];
 
                         if (!streak) {
-                            console.log(
-                                `[STREAK REMINDERS] ${streakName} is no longer present after refresh for ${discordId}.`
+                            logger.info(
+                                `[STREAK REMINDERS] ${streakName} is no longer present after refresh for ${discordId}.`,
+                                { discordId, streakName, service: 'streak-reminders' }
                             );
 
                             break;
                         }
 
                         now = Date.now();
-
                         expiresAt =
                             new Date(streak.expiresAt).getTime();
-
                         timeLeft = expiresAt - now;
 
-                        if (
-                            !Array.isArray(streak.remindersSent)
-                        ) {
+                        if (!Array.isArray(streak.remindersSent)) {
                             streak.remindersSent = [];
                         }
 
-                        /*
-                         * After refreshing, the streak may no
-                         * longer be near expiry.
-                         */
                         if (
                             timeLeft <= 0 ||
                             timeLeft > stage.ms ||
-                            streak.remindersSent.includes(
-                                stage.label
-                            )
+                            streak.remindersSent.includes(stage.label)
                         ) {
-                            console.log(
-                                `[STREAK REMINDERS] ${streakName} no longer needs a 1h reminder for ${discordId}.`
+                            logger.info(
+                                `[STREAK REMINDERS] ${streakName} no longer needs a 1h reminder for ${discordId}.`,
+                                { discordId, streakName, service: 'streak-reminders' }
                             );
 
                             break;
@@ -200,29 +182,24 @@ async function checkStreakReminders(client) {
                             `Use \`/streaksettings\` to change which jobs notify you.`
                         );
 
-                        console.log(
-                            `[STREAK REMINDERS] Sent ${stage.label} reminder to ${discordId} for ${streakName}`
+                        logger.info(
+                            `[STREAK REMINDERS] Sent ${stage.label} reminder to ${discordId} for ${streakName}`,
+                            { discordId, streakName, stage: stage.label, service: 'streak-reminders' }
                         );
 
-                        for (
-                            const completedStage
-                            of REMINDER_STAGES
-                        ) {
+                        for (const completedStage of REMINDER_STAGES) {
                             if (
                                 completedStage.ms >= stage.ms &&
-                                !streak.remindersSent.includes(
-                                    completedStage.label
-                                )
+                                !streak.remindersSent.includes(completedStage.label)
                             ) {
-                                streak.remindersSent.push(
-                                    completedStage.label
-                                );
+                                streak.remindersSent.push(completedStage.label);
                             }
                         }
                     } catch (error) {
-                        console.error(
-                            `[STREAK REMINDERS] Could not DM ${discordId}:`,
-                            error
+                        logger.error(
+                            '[STREAK REMINDERS] Could not send reminder DM.',
+                            error,
+                            { discordId, streakName, stage: stage.label, service: 'streak-reminders' }
                         );
                     }
 

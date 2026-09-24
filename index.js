@@ -8,6 +8,8 @@ const {
     Collection
 } = require("discord.js");
 
+const logger = require("./services/logger");
+
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
 });
@@ -28,7 +30,7 @@ function startKumaHeartbeat() {
     ].filter(Boolean);
 
     if (pushUrls.length === 0) {
-        console.log("[KUMA] No push URLs are configured; heartbeat disabled.");
+        logger.info("[KUMA] No push URLs are configured; heartbeat disabled.");
         return;
     }
 
@@ -37,15 +39,20 @@ function startKumaHeartbeat() {
             try {
                 const response = await fetch(pushUrl);
                 if (!response.ok) {
-                    console.error(`[KUMA] Heartbeat failed with HTTP ${response.status}`);
+                    logger.warn(
+                        `[KUMA] Heartbeat failed with HTTP ${response.status}`,
+                        { service: 'kuma-heartbeat', pushUrl }
+                    );
                 }
             } catch (error) {
-                console.error("[KUMA] Heartbeat failed:", error.message);
+                logger.error("[KUMA] Heartbeat failed:", error, {
+                    service: 'kuma-heartbeat',
+                    pushUrl,
+                });
             }
         }
     };
 
-    // Report immediately once Discord is ready, then once per minute.
     sendHeartbeat();
     setInterval(sendHeartbeat, 60_000);
 }
@@ -55,12 +62,10 @@ const {
     saveUsers,
 } = require("./utils/tycoon");
 
-const logger = require("./services/logger");
 const { logCommandUsage } = require("./utils/stats");
 
 client.commands = new Collection();
 
-// Import commands
 const pingCommand = require("./commands/ping");
 const commandsCommand = require("./commands/commands");
 const fishxpCommand = require("./commands/fishxp");
@@ -97,12 +102,12 @@ for (const command of activeCommands) {
     client.commands.set(command.data.name, command);
 }
 
-// Runs once bot is ready to be used
-client.once("clientReady", () => {
-    console.log("Bot is ready!");
-    console.log(`Logged in as ${client.user.tag}`);
-
+client.once("ready", () => {
+    // Set the client before emitting startup logs so they can reach Discord.
     logger.setClient(client);
+
+    logger.info("Bot is ready!");
+    logger.info(`Logged in as ${client.user.tag}`);
     logger.important(`Bot logged in as ${client.user.tag}`);
 
     startStreakRefresher(client);
@@ -111,14 +116,7 @@ client.once("clientReady", () => {
     startKumaHeartbeat();
 });
 
-// Handles Discord interactions
 client.on("interactionCreate", async interaction => {
-
-    /*
-     * =========================
-     * STREAK SETTINGS MENU
-     * =========================
-     */
     if (interaction.isStringSelectMenu()) {
         if (
             interaction.customId ===
@@ -135,22 +133,20 @@ client.on("interactionCreate", async interaction => {
                 });
             }
 
-            /*
-             * interaction.values contains the selected job keys.
-             *
-             * Example:
-             * ["hunter", "deadliest", "mechanic"]
-             */
-            user.streakNotifications =
-                interaction.values;
-
+            user.streakNotifications = interaction.values;
             saveUsers(users);
 
-            const count =
-                interaction.values.length;
+            const count = interaction.values.length;
 
-            console.log(
-                `[STREAK SETTINGS] ${interaction.user.tag} (${interaction.user.id}) enabled ${count} streak notification jobs.`
+            logger.info(
+                `[STREAK SETTINGS] ${interaction.user.tag} (${interaction.user.id}) enabled ${count} streak notification jobs.`,
+                {
+                    service: 'streak-settings',
+                    userId: interaction.user.id,
+                    userTag: interaction.user.tag,
+                    guildId: interaction.guild?.id,
+                    guildName: interaction.guild?.name ?? 'DM',
+                }
             );
 
             return interaction.update({
@@ -166,28 +162,27 @@ client.on("interactionCreate", async interaction => {
         return;
     }
 
-    /*
-     * =========================
-     * SLASH COMMANDS
-     * =========================
-     */
     if (!interaction.isChatInputCommand()) return;
 
-    const timestamp = new Date().toLocaleTimeString(
-        "en-IE",
-        {
-            hour12: false,
-        }
-    );
+    const timestamp = new Date().toLocaleTimeString("en-IE", {
+        hour12: false,
+    });
 
-    console.log(
-        `[${timestamp}] [COMMAND] /${interaction.commandName} | User: ${interaction.user.tag} (${interaction.user.id}) | Server: ${interaction.guild?.name || "DM"}`
+    logger.info(
+        `[${timestamp}] [COMMAND] /${interaction.commandName} | User: ${interaction.user.tag} (${interaction.user.id}) | Server: ${interaction.guild?.name || "DM"}`,
+        {
+            service: 'discord-command',
+            command: interaction.commandName,
+            userId: interaction.user.id,
+            userTag: interaction.user.tag,
+            guildId: interaction.guild?.id,
+            guildName: interaction.guild?.name ?? 'DM',
+        }
     );
 
     logCommandUsage(interaction);
 
-    const command =
-        client.commands.get(interaction.commandName);
+    const command = client.commands.get(interaction.commandName);
 
     if (!command) return;
 
@@ -196,43 +191,41 @@ client.on("interactionCreate", async interaction => {
     } catch (error) {
         logger.error(
             `Command /${interaction.commandName} failed for ${interaction.user.tag}`,
-            error
+            error,
+            {
+                service: 'discord-command',
+                command: interaction.commandName,
+                userId: interaction.user.id,
+                userTag: interaction.user.tag,
+                guildId: interaction.guild?.id,
+                guildName: interaction.guild?.name ?? 'DM',
+                channelId: interaction.channelId,
+            }
         );
 
         const errorMessage = {
-            content:
-                "There was an error while running this command.",
+            content: "There was an error while running this command.",
             ephemeral: true,
         };
 
-        if (
-            interaction.replied ||
-            interaction.deferred
-        ) {
-            await interaction.followUp(
-                errorMessage
-            );
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(errorMessage);
         } else {
-            await interaction.reply(
-                errorMessage
-            );
+            await interaction.reply(errorMessage);
         }
     }
 });
 
 process.on("unhandledRejection", error => {
-    logger.error(
-        "Unhandled promise rejection",
-        error
-    );
+    logger.critical("Unhandled promise rejection", error, {
+        service: 'process',
+    });
 });
 
 process.on("uncaughtException", error => {
-    logger.error(
-        "Uncaught exception",
-        error
-    );
+    logger.critical("Uncaught exception", error, {
+        service: 'process',
+    });
 });
 
-// Log in to Discord
 client.login(process.env.TOKEN);

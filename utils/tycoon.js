@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const logger = require('./logger');
 
 const API_BASE_URLS = [
     'https://api.tycoon.community',
@@ -131,8 +132,13 @@ async function fetchUserData(apiKey, tycoonUserId) {
         const url = `${baseUrl}/data/${tycoonUserId}`;
 
         try {
-            console.log(
-                `[TYCOON API] Trying ${baseUrl} for user ${tycoonUserId}`
+            logger.info(
+                `[TYCOON API] Trying data endpoint.`,
+                {
+                    service: 'tycoon-api',
+                    tycoonUserId,
+                    baseUrl,
+                }
             );
 
             const response = await fetch(url, {
@@ -147,10 +153,6 @@ async function fetchUserData(apiKey, tycoonUserId) {
             const chargesLeft =
                 response.headers.get('X-Tycoon-Charges');
 
-            /*
-             * A 4xx response usually means the request, API key,
-             * user ID or available charges are the problem.
-             */
             if (response.status >= 400 && response.status < 500) {
                 const errorBody = await response.text();
 
@@ -160,9 +162,6 @@ async function fetchUserData(apiKey, tycoonUserId) {
                 );
             }
 
-            /*
-             * Server-side errors will move on to the beta API.
-             */
             if (!response.ok) {
                 throw new Error(
                     `API server error: ${response.status} ` +
@@ -172,9 +171,14 @@ async function fetchUserData(apiKey, tycoonUserId) {
 
             const data = await response.json();
 
-            console.log(
-                `[TYCOON API] Success using ${baseUrl} ` +
-                `for user ${tycoonUserId}`
+            logger.info(
+                `[TYCOON API] Success using primary endpoint.`,
+                {
+                    service: 'tycoon-api',
+                    tycoonUserId,
+                    baseUrl,
+                    chargesLeft,
+                }
             );
 
             return {
@@ -184,16 +188,16 @@ async function fetchUserData(apiKey, tycoonUserId) {
         } catch (error) {
             lastError = error;
 
-            console.error(
-                `[TYCOON API] Failed using ${baseUrl} ` +
-                `for user ${tycoonUserId}:`,
-                error.message
+            logger.error(
+                `[TYCOON API] Failed to fetch user data.`,
+                error,
+                {
+                    service: 'tycoon-api',
+                    tycoonUserId,
+                    baseUrl,
+                }
             );
 
-            /*
-             * Do not retry beta when the API successfully responded
-             * with a client-side 4xx error.
-             */
             if (error.message.startsWith('API request rejected:')) {
                 throw error;
             }
@@ -245,8 +249,7 @@ async function fetchSotd(forceRefresh = false) {
 
     const currentDayKey = getSotdDayKey();
 
-    const cacheAge =
-        Date.now() - cachedSotdFetchedAt;
+    const cacheAge = Date.now() - cachedSotdFetchedAt;
 
     const cacheIsValid =
         cachedSotd &&
@@ -257,11 +260,6 @@ async function fetchSotd(forceRefresh = false) {
         return cachedSotd;
     }
 
-    /*
-     * During the 15-minute rollover window, keep using the
-     * previous cached SOTD even if its normal 1-hour cache
-     * has expired.
-     */
     if (
         !forceRefresh &&
         cachedSotd &&
@@ -273,9 +271,13 @@ async function fetchSotd(forceRefresh = false) {
             now.getUTCHours() === 0 &&
             now.getUTCMinutes() < 15
         ) {
-            console.log(
-                '[TYCOON API] SOTD rollover delay active - ' +
-                'using previous cached SOTD'
+            logger.info(
+                '[TYCOON API] SOTD rollover delay active - using previous cached SOTD',
+                {
+                    service: 'tycoon-sotd',
+                    currentDayKey,
+                    cachedSotdDayKey,
+                }
             );
 
             return cachedSotd;
@@ -288,8 +290,12 @@ async function fetchSotd(forceRefresh = false) {
         const url = `${baseUrl}/sotd.json`;
 
         try {
-            console.log(
-                `[TYCOON API] Trying ${baseUrl} for SOTD`
+            logger.info(
+                '[TYCOON API] Trying SOTD endpoint.',
+                {
+                    service: 'tycoon-sotd',
+                    baseUrl,
+                }
             );
 
             const response = await fetch(url, {
@@ -330,22 +336,28 @@ async function fetchSotd(forceRefresh = false) {
             cachedSotdFetchedAt = Date.now();
             cachedSotdDayKey = currentDayKey;
 
-            console.log(
-                `[TYCOON API] Current SOTD: ` +
-                `${sotd.skill} +${sotd.bonus}%`
-            );
-
-            console.log(
-                `[TYCOON API] SOTD day key: ${cachedSotdDayKey}`
+            logger.info(
+                '[TYCOON API] Current SOTD fetched successfully.',
+                {
+                    service: 'tycoon-sotd',
+                    skill: sotd.skill,
+                    bonus: sotd.bonus,
+                    currentDayKey,
+                }
             );
 
             return sotd;
         } catch (error) {
             lastError = error;
 
-            console.error(
-                `[TYCOON API] SOTD failed using ${baseUrl}:`,
-                error.message
+            logger.error(
+                '[TYCOON API] SOTD fetch failed.',
+                error,
+                {
+                    service: 'tycoon-sotd',
+                    baseUrl,
+                    currentDayKey,
+                }
             );
 
             if (error.message.startsWith('SOTD request rejected:')) {
@@ -354,13 +366,14 @@ async function fetchSotd(forceRefresh = false) {
         }
     }
 
-    /*
-     * If a fresh request fails but we have an older cached value,
-     * return it instead of breaking the XP commands.
-     */
     if (cachedSotd) {
-        console.warn(
-            '[TYCOON API] Using expired cached SOTD value'
+        logger.warn(
+            '[TYCOON API] Using expired cached SOTD value.',
+            {
+                service: 'tycoon-sotd',
+                currentDayKey,
+                cacheAge,
+            }
         );
 
         return cachedSotd;
@@ -383,3 +396,4 @@ module.exports = {
     STREAK_JOBS,
     wantsStreakNotification,
 };
+

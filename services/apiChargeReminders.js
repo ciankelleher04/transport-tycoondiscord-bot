@@ -1,3 +1,5 @@
+const logger = require("./logger");
+
 const WARNING_LEVELS = [100, 50, 25, 10, 1];
 
 async function checkApiChargeReminder(
@@ -56,11 +58,11 @@ async function checkApiChargeReminder(
             }
         }
 
-        console.log(
+        logger.info(
             `[API CHARGES] Warned ${discordId}: ${remainingCharges} charges remaining.`
         );
     } catch (error) {
-        console.error(
+        logger.error(
             `[API CHARGES] Could not warn ${discordId}:`,
             error
         );

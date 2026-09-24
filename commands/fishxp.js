@@ -8,7 +8,7 @@ const {
 } = require("discord.js");
 
 const { fetchSotd } = require("../utils/tycoon");
-
+const logger = require("../services/logger");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -62,49 +62,48 @@ module.exports = {
     name: "fishxp",
 
     async execute(interaction) {
-
-        //Get command options
-        const targetXp = Number(interaction.options.getString("target"))
+        const targetXp = Number(interaction.options.getString("target"));
         const currentXp = interaction.options.getInteger("current_xp");
         const enteredBaseXp = interaction.options.getNumber("base_xp");
         const usingBonusXp = interaction.options.getBoolean("bonus_xp");
         const bxpAvailable = interaction.options.getInteger("bonus_xp_amount") || 0;
+        const context = {
+            service: "fish-xp",
+            command: "fishxp",
+            userId: interaction.user.id,
+            userTag: interaction.user.tag,
+            guildId: interaction.guild?.id,
+            guildName: interaction.guild?.name ?? "DM",
+        };
 
         let baseXp = enteredBaseXp;
-
         let sotdApplied = false;
         let sotdBonus = 0;
 
         try {
             const sotd = await fetchSotd();
 
-            console.log("[SOTD]", sotd);
-
             if (sotd.skill.toLowerCase().includes("fish")) {
                 baseXp += sotd.bonus;
                 sotdBonus = sotd.bonus;
                 sotdApplied = true;
             }
-
         } catch (error) {
-            console.error("Failed to fetch SOTD:", error);
+            logger.warn("[FISH XP] Failed to fetch SOTD; continuing without it.", {
+                ...context,
+                error: error.message,
+            });
         }
 
-        //Constants
         const xpRemaining = targetXp - currentXp;
-
-
         const fishPerSale = 10000;
         const baseXpPerSale = 50;
         const bxpUsedPerSale = 500;
 
-        //Calculations
         const xpPerSaleNoBonus =
             baseXpPerSale * (1 + (baseXp / 100));
 
-        const xpPerSaleWithBonus =
-            xpPerSaleNoBonus * 2;
-
+        const xpPerSaleWithBonus = xpPerSaleNoBonus * 2;
         const salesWithBonus = Math.floor(bxpAvailable / bxpUsedPerSale);
         const xpCoveredByBonusSales = salesWithBonus * xpPerSaleWithBonus;
 
@@ -120,13 +119,10 @@ module.exports = {
         }
 
         const fishRemaining = salesRemaining * fishPerSale;
-
         const salesIfAllBonus = Math.ceil(xpRemaining / xpPerSaleWithBonus);
         const totalBxpNeeded = Math.ceil(salesIfAllBonus * bxpUsedPerSale);
         const bxpNeeded = Math.max(totalBxpNeeded - bxpAvailable, 0);
 
-
-        //Embed
         const fishEmbed = new EmbedBuilder()
             .setTitle("🐟 Fish XP Calculator")
             .setTimestamp()
@@ -139,47 +135,16 @@ module.exports = {
                 iconURL: interaction.client.user.displayAvatarURL()
             })
             .addFields(
-                {
-                    name: "🎯 Target XP",
-                    value: targetXp.toLocaleString(),
-                    inline: true,
-                },
-                {
-                    name: "📈 Current XP",
-                    value: currentXp.toLocaleString(),
-                    inline: true,
-                },
-                {
-                    name: "⭐ Base XP Bonus",
-                    value: `${enteredBaseXp}%`,
-                    inline: true,
-                },
-                {
-                    name: "📊 XP Remaining",
-                    value: xpRemaining.toLocaleString(),
-                    inline: true,
-                },
-                {
-                    name: "🐟 Fish Remaining",
-                    value: fishRemaining.toLocaleString(),
-                    inline: true,
-                },
-                {
-                    name: "⚡ BXP Available",
-                    value: bxpAvailable.toLocaleString(),
-                    inline: true,
-                },
-                {
-                    name: "⚡ Total BXP Needed",
-                    value: totalBxpNeeded.toLocaleString(),
-                    inline: true,
-                },
-                {
-                    name: "🛒  BXP Still Needed",
-                    value: bxpNeeded.toLocaleString(),
-                    inline: true,
-                },
+                { name: "🎯 Target XP", value: targetXp.toLocaleString(), inline: true },
+                { name: "📈 Current XP", value: currentXp.toLocaleString(), inline: true },
+                { name: "⭐ Base XP Bonus", value: `${enteredBaseXp}%`, inline: true },
+                { name: "📊 XP Remaining", value: xpRemaining.toLocaleString(), inline: true },
+                { name: "🐟 Fish Remaining", value: fishRemaining.toLocaleString(), inline: true },
+                { name: "⚡ BXP Available", value: bxpAvailable.toLocaleString(), inline: true },
+                { name: "⚡ Total BXP Needed", value: totalBxpNeeded.toLocaleString(), inline: true },
+                { name: "🛒  BXP Still Needed", value: bxpNeeded.toLocaleString(), inline: true },
             );
+
         if (sotdApplied) {
             fishEmbed.addFields({
                 name: "🎣 SOTD Bonus",
@@ -187,10 +152,7 @@ module.exports = {
                 inline: true,
             });
         }
-        //reply
-        await interaction.reply({
-            embeds: [fishEmbed]
-        });
 
+        await interaction.reply({ embeds: [fishEmbed] });
     },
 };
