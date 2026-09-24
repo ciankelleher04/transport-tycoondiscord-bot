@@ -8,6 +8,8 @@ const {
     Collection
 } = require("discord.js");
 
+const logger = require("./services/logger");
+
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
 });
@@ -28,7 +30,7 @@ function startKumaHeartbeat() {
     ].filter(Boolean);
 
     if (pushUrls.length === 0) {
-        console.log("[KUMA] No push URLs are configured; heartbeat disabled.");
+        logger.info("[KUMA] No push URLs are configured; heartbeat disabled.");
         return;
     }
 
@@ -37,10 +39,10 @@ function startKumaHeartbeat() {
             try {
                 const response = await fetch(pushUrl);
                 if (!response.ok) {
-                    console.error(`[KUMA] Heartbeat failed with HTTP ${response.status}`);
+                    logger.warn(`[KUMA] Heartbeat failed with HTTP ${response.status}`);
                 }
             } catch (error) {
-                console.error("[KUMA] Heartbeat failed:", error.message);
+                logger.error("[KUMA] Heartbeat failed:", error);
             }
         }
     };
@@ -55,7 +57,6 @@ const {
     saveUsers,
 } = require("./utils/tycoon");
 
-const logger = require("./services/logger");
 const { logCommandUsage } = require("./utils/stats");
 
 client.commands = new Collection();
@@ -98,13 +99,12 @@ for (const command of activeCommands) {
 }
 
 // Runs once bot is ready to be used
-client.once("clientReady", () => {
-    console.log("Bot is ready!");
-    console.log(`Logged in as ${client.user.tag}`);
-
-    logger.setClient(client);
+client.once("ready", () => {
+    logger.info("Bot is ready!");
+    logger.info(`Logged in as ${client.user.tag}`);
     logger.important(`Bot logged in as ${client.user.tag}`);
 
+    logger.setClient(client);
     startStreakRefresher(client);
     startStreakReminderChecker(client);
     startHealthWriter(client);
@@ -149,7 +149,7 @@ client.on("interactionCreate", async interaction => {
             const count =
                 interaction.values.length;
 
-            console.log(
+            logger.info(
                 `[STREAK SETTINGS] ${interaction.user.tag} (${interaction.user.id}) enabled ${count} streak notification jobs.`
             );
 
@@ -180,7 +180,7 @@ client.on("interactionCreate", async interaction => {
         }
     );
 
-    console.log(
+    logger.info(
         `[${timestamp}] [COMMAND] /${interaction.commandName} | User: ${interaction.user.tag} (${interaction.user.id}) | Server: ${interaction.guild?.name || "DM"}`
     );
 
@@ -221,14 +221,14 @@ client.on("interactionCreate", async interaction => {
 });
 
 process.on("unhandledRejection", error => {
-    logger.error(
+    logger.critical(
         "Unhandled promise rejection",
         error
     );
 });
 
 process.on("uncaughtException", error => {
-    logger.error(
+    logger.critical(
         "Uncaught exception",
         error
     );

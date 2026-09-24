@@ -1,4 +1,5 @@
 const fs = require("node:fs");
+const logger = require("./logger");
 
 const HEALTH_FILE = "/data/health.json";
 
@@ -23,15 +24,12 @@ function writeHealth(client) {
             "utf8"
         );
     } catch (error) {
-        console.error(
-            "[HEALTH WRITER] Failed to update health file:",
-            error
-        );
+        logger.error("[HEALTH WRITER] Failed to update health file:", error);
     }
 }
 
 function startHealthWriter(client) {
-    console.log("[HEALTH WRITER] Starting health updates...");
+    logger.info("[HEALTH WRITER] Starting health updates...");
 
     /*
      * Write immediately when the bot starts.
