@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const logger = require('./logger');
+const logger = require('../services/logger');
 
 const API_BASE_URLS = [
     'https://api.tycoon.community',
@@ -396,4 +396,3 @@ module.exports = {
     STREAK_JOBS,
     wantsStreakNotification,
 };
-
