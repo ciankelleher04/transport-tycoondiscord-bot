@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { fetch: undiciFetch, Agent } = require('undici');
 const logger = require('../services/logger');
 
 const API_BASE_URLS = [
@@ -8,12 +9,47 @@ const API_BASE_URLS = [
 ];
 
 const TYCOON_API_KEY = process.env.TYCOON_API_KEY;
+const ALLOW_INVALID_TYCOON_CERT =
+    process.env.TYCOON_ALLOW_INVALID_CERT === 'true';
+
+const tycoonDispatcher = ALLOW_INVALID_TYCOON_CERT
+    ? new Agent({
+        connect: {
+            rejectUnauthorized: false,
+        },
+    })
+    : undefined;
 
 const USERS_FILE =
     process.env.USERS_FILE ??
     path.join(__dirname, '..', 'data', 'tycoon-users.json');
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+async function tycoonFetch(url, options = {}) {
+    const requestUrl = new URL(url);
+
+    if (!API_BASE_URLS.includes(requestUrl.origin)) {
+        throw new Error(
+            `Refusing to use Tycoon TLS configuration for unexpected origin: ${requestUrl.origin}`
+        );
+    }
+
+    if (ALLOW_INVALID_TYCOON_CERT) {
+        logger.warn(
+            '[TYCOON API] TLS certificate verification is disabled for this bot session.',
+            {
+                service: 'tycoon-api',
+                origin: requestUrl.origin,
+            }
+        );
+    }
+
+    return undiciFetch(url, {
+        ...options,
+        ...(tycoonDispatcher ? { dispatcher: tycoonDispatcher } : {}),
+    });
+}
 
 /*
  * =========================
@@ -133,7 +169,7 @@ async function fetchUserData(apiKey, tycoonUserId) {
 
         try {
             logger.info(
-                `[TYCOON API] Trying data endpoint.`,
+                '[TYCOON API] Trying data endpoint.',
                 {
                     service: 'tycoon-api',
                     tycoonUserId,
@@ -141,7 +177,7 @@ async function fetchUserData(apiKey, tycoonUserId) {
                 }
             );
 
-            const response = await fetch(url, {
+            const response = await tycoonFetch(url, {
                 method: 'GET',
                 headers: {
                     'X-Tycoon-Key': apiKey,
@@ -172,7 +208,7 @@ async function fetchUserData(apiKey, tycoonUserId) {
             const data = await response.json();
 
             logger.info(
-                `[TYCOON API] Success using primary endpoint.`,
+                '[TYCOON API] Success using primary endpoint.',
                 {
                     service: 'tycoon-api',
                     tycoonUserId,
@@ -189,7 +225,7 @@ async function fetchUserData(apiKey, tycoonUserId) {
             lastError = error;
 
             logger.error(
-                `[TYCOON API] Failed to fetch user data.`,
+                '[TYCOON API] Failed to fetch user data.',
                 error,
                 {
                     service: 'tycoon-api',
@@ -298,7 +334,7 @@ async function fetchSotd(forceRefresh = false) {
                 }
             );
 
-            const response = await fetch(url, {
+            const response = await tycoonFetch(url, {
                 method: 'GET',
                 headers: {
                     'X-Tycoon-Key': TYCOON_API_KEY,
@@ -395,4 +431,5 @@ module.exports = {
     buildStoredStreaks,
     STREAK_JOBS,
     wantsStreakNotification,
+    tycoonFetch,
 };
