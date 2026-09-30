@@ -1,5 +1,9 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { loadUsers, saveUsers } = require('../utils/tycoon');
+const {
+    loadUsers,
+    saveUsers,
+    tycoonFetch,
+} = require('../utils/tycoon');
 const logger = require('../services/logger');
 
 const BASE_API_URL = 'https://api.tycoon.community';
@@ -30,7 +34,7 @@ module.exports = {
         };
 
         try {
-            const userResponse = await fetch(`${BASE_API_URL}/snowflake2user/${discordId}`, {
+            const userResponse = await tycoonFetch(`${BASE_API_URL}/snowflake2user/${discordId}`, {
                 method: 'GET',
                 headers: {
                     'X-Tycoon-Key': apiKey,
@@ -70,7 +74,7 @@ module.exports = {
                 );
             }
 
-            const testResponse = await fetch(`${BASE_API_URL}/data/${tycoonUserId}`, {
+            const testResponse = await tycoonFetch(`${BASE_API_URL}/data/${tycoonUserId}`, {
                 method: 'GET',
                 headers: {
                     'X-Tycoon-Key': apiKey,
@@ -92,7 +96,7 @@ module.exports = {
 
             const users = loadUsers();
 
-            const streakResponse = await fetch(`${BASE_API_URL}/streak/${tycoonUserId}`, {
+            const streakResponse = await tycoonFetch(`${BASE_API_URL}/streak/${tycoonUserId}`, {
                 method: 'GET',
                 headers: {
                     'X-Tycoon-Key': apiKey,
