@@ -16,6 +16,7 @@ module.exports = {
                     '`/streakstatus` — Show your active job streaks',
                     '`/fishxp` — Calculate Fish XP requirements',
                     '`/bearxp` — Calculate hunting XP requirements',
+                    '`/gotm` — Calculate GOTM order points',
                     '`/suggest` — Suggest new bot ideas/bot commands',
                 ].join('\n')
             );

@@ -70,6 +70,7 @@ const pingCommand = require("./commands/ping");
 const commandsCommand = require("./commands/commands");
 const fishxpCommand = require("./commands/fishxp");
 const bearxpCommand = require("./commands/bearxp");
+const gotmCommand = require("./commands/gotm");
 const streakstatus = require("./commands/streakstatus");
 const streaksettings = require("./commands/streaksettings");
 const register = require("./commands/register");
@@ -86,6 +87,7 @@ const activeCommands = [
     commandsCommand,
     fishxpCommand,
     bearxpCommand,
+    gotmCommand,
     streakstatus,
     streaksettings,
     register,
