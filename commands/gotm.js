@@ -85,6 +85,13 @@ function formatResult(value) {
     });
 }
 
+function normalizeProductKey(productInput) {
+    return productInput
+        ?.trim()
+        .replace(/\s*\(\s*\d+\s+points?\s*\)\s*$/i, "")
+        .toLowerCase();
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("gotm")
@@ -154,7 +161,7 @@ module.exports = {
     async execute(interaction) {
         const priority = interaction.options.getString("priority");
         const selectedProduct = interaction.options.getString(PRODUCT_OPTION_NAME);
-        const productKey = selectedProduct?.toLowerCase().trim();
+        const productKey = normalizeProductKey(selectedProduct);
         const selectedProductData = productKey ? PRODUCT_GOTM_POINTS[productKey] : null;
         const itemGotmPoints = selectedProductData?.points;
         const amountOrdered = interaction.options.getNumber("amount_ordered");
