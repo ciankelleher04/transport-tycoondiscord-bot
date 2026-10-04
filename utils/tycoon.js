@@ -3,10 +3,28 @@ const path = require('node:path');
 const { fetch: undiciFetch, Agent } = require('undici');
 const logger = require('../services/logger');
 
-const API_BASE_URLS = [
+const USER_DATA_ENDPOINTS = [
+    {
+        name: 'Server 1',
+        baseUrl: 'http://server.tycoon.community:30120/status/',
+    },
+    {
+        name: 'Server 5',
+        baseUrl: 'http://server.tycoon.community:30125/status/',
+    },
+];
+
+const SOTD_BASE_URLS = [
     'https://api.tycoon.community',
     'https://apibeta.tycoon.community',
 ];
+
+const TRUSTED_TYCOON_ORIGINS = new Set([
+    ...USER_DATA_ENDPOINTS.map(endpoint =>
+        new URL(endpoint.baseUrl).origin
+    ),
+    ...SOTD_BASE_URLS.map(baseUrl => new URL(baseUrl).origin),
+]);
 
 const TYCOON_API_KEY = process.env.TYCOON_API_KEY;
 const ALLOW_INVALID_TYCOON_CERT =
@@ -29,7 +47,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 async function tycoonFetch(url, options = {}) {
     const requestUrl = new URL(url);
 
-    if (!API_BASE_URLS.includes(requestUrl.origin)) {
+    if (!TRUSTED_TYCOON_ORIGINS.has(requestUrl.origin)) {
         throw new Error(
             `Refusing to use Tycoon TLS configuration for unexpected origin: ${requestUrl.origin}`
         );
@@ -163,9 +181,17 @@ function formatTimeRemaining(expiryDate) {
 
 async function fetchUserData(apiKey, tycoonUserId) {
     let lastError;
+    let fallbackResponse;
 
-    for (const baseUrl of API_BASE_URLS) {
-        const url = `${baseUrl}/data/${tycoonUserId}`;
+    for (const endpoint of USER_DATA_ENDPOINTS) {
+        const baseUrl =
+            endpoint.baseUrl.endsWith('/')
+                ? endpoint.baseUrl
+                : `${endpoint.baseUrl}/`;
+        const url = new URL(
+            `data/${encodeURIComponent(String(tycoonUserId))}`,
+            baseUrl
+        );
 
         try {
             logger.info(
@@ -174,10 +200,11 @@ async function fetchUserData(apiKey, tycoonUserId) {
                     service: 'tycoon-api',
                     tycoonUserId,
                     baseUrl,
+                    endpointName: endpoint.name,
                 }
             );
 
-            const response = await tycoonFetch(url, {
+            const response = await tycoonFetch(url.toString(), {
                 method: 'GET',
                 headers: {
                     'X-Tycoon-Key': apiKey,
@@ -206,19 +233,53 @@ async function fetchUserData(apiKey, tycoonUserId) {
             }
 
             const data = await response.json();
+            const streaks = data?.data?.streaks ?? data?.streaks;
+
+            const normalizedData =
+                data?.data?.streaks
+                    ? data
+                    : streaks
+                        ? {
+                            ...data,
+                            data: {
+                                ...(data?.data ?? {}),
+                                streaks,
+                            },
+                        }
+                        : data;
 
             logger.info(
-                '[TYCOON API] Success using primary endpoint.',
+                '[TYCOON API] User data request succeeded.',
                 {
                     service: 'tycoon-api',
                     tycoonUserId,
                     baseUrl,
+                    endpointName: endpoint.name,
                     chargesLeft,
                 }
             );
 
+            if (!normalizedData?.data?.streaks) {
+                logger.warn(
+                    '[TYCOON API] Endpoint response does not include user streak data.',
+                    {
+                        service: 'tycoon-api',
+                        tycoonUserId,
+                        baseUrl,
+                        endpointName: endpoint.name,
+                    }
+                );
+
+                fallbackResponse = {
+                    data: normalizedData,
+                    chargesLeft,
+                };
+
+                continue;
+            }
+
             return {
-                data,
+                data: normalizedData,
                 chargesLeft,
             };
         } catch (error) {
@@ -231,6 +292,7 @@ async function fetchUserData(apiKey, tycoonUserId) {
                     service: 'tycoon-api',
                     tycoonUserId,
                     baseUrl,
+                    endpointName: endpoint.name,
                 }
             );
 
@@ -240,8 +302,20 @@ async function fetchUserData(apiKey, tycoonUserId) {
         }
     }
 
+    if (fallbackResponse) {
+        logger.warn(
+            '[TYCOON API] Returning fallback response without streak data after all endpoint attempts.',
+            {
+                service: 'tycoon-api',
+                tycoonUserId,
+            }
+        );
+
+        return fallbackResponse;
+    }
+
     throw new Error(
-        `Main and beta Tycoon APIs both failed. ` +
+        `All Tycoon data endpoints failed. ` +
         `Last error: ${lastError?.message ?? 'Unknown error'}`
     );
 }
@@ -322,7 +396,7 @@ async function fetchSotd(forceRefresh = false) {
 
     let lastError;
 
-    for (const baseUrl of API_BASE_URLS) {
+    for (const baseUrl of SOTD_BASE_URLS) {
         const url = `${baseUrl}/sotd.json`;
 
         try {
@@ -416,7 +490,7 @@ async function fetchSotd(forceRefresh = false) {
     }
 
     throw new Error(
-        `Main and beta Tycoon SOTD APIs both failed. ` +
+        `All Tycoon SOTD endpoints failed. ` +
         `Last error: ${lastError?.message ?? 'Unknown error'}`
     );
 }

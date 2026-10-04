@@ -37,7 +37,7 @@ module.exports = {
 
             if (!streaks) {
                 return interaction.editReply(
-                    'No streak data found in the API response.'
+                    'Tycoon did not return user streak data right now. Please try again in a few minutes.'
                 );
             }
 
