@@ -164,6 +164,34 @@ client.on("interactionCreate", async interaction => {
         return;
     }
 
+    if (interaction.isAutocomplete()) {
+        const command = client.commands.get(interaction.commandName);
+
+        if (!command?.autocomplete) {
+            return;
+        }
+
+        try {
+            await command.autocomplete(interaction);
+        } catch (error) {
+            logger.error(
+                `Autocomplete /${interaction.commandName} failed for ${interaction.user.tag}`,
+                error,
+                {
+                    service: "discord-autocomplete",
+                    command: interaction.commandName,
+                    userId: interaction.user.id,
+                    userTag: interaction.user.tag,
+                    guildId: interaction.guild?.id,
+                    guildName: interaction.guild?.name ?? "DM",
+                    channelId: interaction.channelId,
+                }
+            );
+        }
+
+        return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     const timestamp = new Date().toLocaleTimeString("en-IE", {
