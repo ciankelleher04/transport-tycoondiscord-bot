@@ -60,6 +60,8 @@ module.exports = {
     name: "bearxp",
 
     async execute(interaction) {
+        await interaction.deferReply();
+
         const targetXp = Number(interaction.options.getString("target"));
         const currentXp = interaction.options.getInteger("current_xp");
         const enteredBaseXp = interaction.options.getNumber("base_xp");
@@ -95,6 +97,12 @@ module.exports = {
         }
 
         const xpRemaining = targetXp - currentXp;
+        if (xpRemaining <= 0) {
+            return interaction.editReply({
+                content: "You're already at or above your selected target XP.",
+            });
+        }
+
         const baseBearXp = 6;
         const bxpUsedPerBear = 60;
         const xpPerBearNoBonus = baseBearXp * (1 + (baseXp / 100));
@@ -112,6 +120,12 @@ module.exports = {
                 bearsWithBonus + Math.ceil(xpLeftAfterBonus / xpPerBearNoBonus);
         } else {
             bearsRemaining = Math.ceil(xpRemaining / xpPerBearNoBonus);
+        }
+
+        if (!Number.isFinite(bearsRemaining) || bearsRemaining < 0) {
+            return interaction.editReply({
+                content: "Your inputs produce an invalid result. Please check your XP values and try again.",
+            });
         }
 
         const bearsIfAllBonus = Math.ceil(xpRemaining / xpPerBearWithBonus);
@@ -148,6 +162,6 @@ module.exports = {
             });
         }
 
-        await interaction.reply({ embeds: [bearEmbed] });
+        await interaction.editReply({ embeds: [bearEmbed] });
     },
 };

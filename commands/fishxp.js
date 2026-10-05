@@ -62,6 +62,8 @@ module.exports = {
     name: "fishxp",
 
     async execute(interaction) {
+        await interaction.deferReply();
+
         const targetXp = Number(interaction.options.getString("target"));
         const currentXp = interaction.options.getInteger("current_xp");
         const enteredBaseXp = interaction.options.getNumber("base_xp");
@@ -96,6 +98,12 @@ module.exports = {
         }
 
         const xpRemaining = targetXp - currentXp;
+        if (xpRemaining <= 0) {
+            return interaction.editReply({
+                content: "You're already at or above your selected target XP.",
+            });
+        }
+
         const fishPerSale = 10000;
         const baseXpPerSale = 50;
         const bxpUsedPerSale = 500;
@@ -116,6 +124,12 @@ module.exports = {
             salesRemaining = salesWithBonus + Math.ceil(xpLeftAfterBonus / xpPerSaleNoBonus);
         } else {
             salesRemaining = Math.ceil(xpRemaining / xpPerSaleNoBonus);
+        }
+
+        if (!Number.isFinite(salesRemaining) || salesRemaining < 0) {
+            return interaction.editReply({
+                content: "Your inputs produce an invalid result. Please check your XP values and try again.",
+            });
         }
 
         const fishRemaining = salesRemaining * fishPerSale;
@@ -153,6 +167,6 @@ module.exports = {
             });
         }
 
-        await interaction.reply({ embeds: [fishEmbed] });
+        await interaction.editReply({ embeds: [fishEmbed] });
     },
 };
