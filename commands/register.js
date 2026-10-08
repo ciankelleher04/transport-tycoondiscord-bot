@@ -6,7 +6,7 @@ const {
 } = require('../utils/tycoon');
 const logger = require('../services/logger');
 
-const BASE_API_URL = 'server.tycoon.community:30120/status';
+const BASE_API_URL = 'http://server.tycoon.community:30120/status';
 
 module.exports = {
     data: new SlashCommandBuilder()
