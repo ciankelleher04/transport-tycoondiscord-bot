@@ -15,8 +15,8 @@ const USER_DATA_ENDPOINTS = [
 ];
 
 const SOTD_BASE_URLS = [
-    'http://server.tycoon.community:30120/status/',
-    'http://server.tycoon.community:30125/status/',
+    'http://server.tycoon.community:30120/status',
+    'http://server.tycoon.community:30125/status',
 ];
 
 const TRUSTED_TYCOON_ORIGINS = new Set([
