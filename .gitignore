@@ -30,3 +30,8 @@ npm-debug.log*
 
 # Data
 data/
+# Glance private configuration
+glance/secrets.env
+glance/glance.yml.backup
+glance/glance.yml.backup
+glance/glance.yml.backup

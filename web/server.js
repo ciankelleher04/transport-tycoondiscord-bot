@@ -1,6 +1,7 @@
 const express = require("express");
 const Database = require("better-sqlite3");
 const fs = require("node:fs");
+const net = require("node:net");
 
 const app = express();
 
@@ -64,6 +65,103 @@ app.get("/health", (req, res) => {
 });
 
 app.use(requireAuth);
+
+app.get("/api/bot-health", (req, res) => {
+    let health = null;
+    let ha = null;
+
+    try {
+        if (fs.existsSync(HEALTH_FILE)) {
+            health = JSON.parse(
+                fs.readFileSync(HEALTH_FILE, "utf8")
+            );
+        }
+
+        if (fs.existsSync(HA_STATUS_FILE)) {
+            ha = JSON.parse(
+                fs.readFileSync(HA_STATUS_FILE, "utf8")
+            );
+        }
+    } catch (error) {
+        console.error(
+            "[STATS WEB] Failed to read bot health API data:",
+            error
+        );
+
+        return res.status(500).json({
+            status: "error",
+            message: "Unable to read health data"
+        });
+    }
+
+    const updatedAt = health?.updatedAt ?? null;
+    const updatedMs = updatedAt
+        ? new Date(updatedAt).getTime()
+        : NaN;
+
+    const ageSeconds = Number.isFinite(updatedMs)
+        ? Math.floor((Date.now() - updatedMs) / 1000)
+        : null;
+
+    const online =
+        health?.online === true &&
+        ageSeconds !== null &&
+        ageSeconds >= 0 &&
+        ageSeconds <= 90;
+
+    res.json({
+        online,
+        activeNode: ha?.activeNode ?? "unknown",
+        ping: health?.ping ?? null,
+        uptimeSeconds: health?.uptimeSeconds ?? null,
+        memoryMB: health?.memoryMB ?? null,
+        serverCount: health?.serverCount ?? null,
+        updatedAt,
+        healthAgeSeconds: ageSeconds,
+        homeStatus: ha?.homeStatus ?? "unknown",
+        vpsStatus: ha?.vpsStatus ?? "unknown"
+    });
+});
+
+// Transport Tycoon API TCP connectivity checks.
+// No API key required and no player-data charges consumed.
+
+function checkTycoonConnection(port) {
+    return new Promise((resolve) => {
+        const socket = net.createConnection({
+            host: "server.tycoon.community",
+            port,
+        });
+
+        let finished = false;
+
+        const finish = (reachable) => {
+            if (finished) return;
+            finished = true;
+            socket.destroy();
+            resolve(reachable);
+        };
+
+        socket.setTimeout(5000);
+
+        socket.on("connect", () => finish(true));
+        socket.on("error", () => finish(false));
+        socket.on("timeout", () => finish(false));
+    });
+}
+
+app.get("/api/tycoon-connectivity", async (req, res) => {
+    const [server1, server5] = await Promise.all([
+        checkTycoonConnection(30120),
+        checkTycoonConnection(30125),
+    ]);
+
+    res.json({
+        server1,
+        server5,
+        checkedAt: new Date().toISOString(),
+    });
+});
 
 app.get("/", (req, res) => {
     /*

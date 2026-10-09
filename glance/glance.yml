@@ -1,0 +1,285 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+
+theme:
+  background-color: 220 15 10
+  primary-color: 210 80 60
+  contrast-multiplier: 1.1
+
+pages:
+  - name: Home
+    columns:
+      # LEFT COLUMN - Proxmox
+      - size: small
+        widgets:
+          - type: custom-api
+            title: Proxmox Server
+            cache: 30s
+            url: https://100.103.25.47:8006/api2/json/nodes/pve/status
+            allow-insecure: true
+            headers:
+              Authorization: "PVEAPIToken=${PROXMOX_API_TOKEN}"
+            template: |
+              <div class="flex justify-between">
+                <span>CPU Usage</span>
+                <strong>{{ mul (.JSON.Float "data.cpu") 100 | printf "%.1f" }}%</strong>
+              </div>
+              <div class="flex justify-between">
+                <span>RAM Usage</span>
+                <strong>{{ div (mul (.JSON.Float "data.memory.used") 100) (.JSON.Float "data.memory.total") | printf "%.1f" }}%</strong>
+              </div>
+              <div class="flex justify-between">
+                <span>Root Disk Usage</span>
+                <strong>{{ div (mul (.JSON.Float "data.rootfs.used") 100) (.JSON.Float "data.rootfs.total") | printf "%.1f" }}%</strong>
+              </div>
+              <div class="flex justify-between">
+                <span>Uptime</span>
+                <strong>{{ div (.JSON.Int "data.uptime") 3600 }} hours</strong>
+              </div>
+
+          - type: custom-api
+            title: Proxmox Containers
+            cache: 30s
+            url: https://100.103.25.47:8006/api2/json/nodes/pve/lxc
+            allow-insecure: true
+            headers:
+              Authorization: "PVEAPIToken=${PROXMOX_API_TOKEN}"
+            template: |
+              {{ $containers := .JSON.Array "data" }}
+              {{ range sortByInt "vmid" "asc" $containers }}
+                <div class="margin-bottom-15">
+                  <div class="flex justify-between items-center margin-bottom-10">
+                    <div>
+                      <div class="size-h4">{{ .String "name" }}</div>
+                      <div class="color-subdue">LXC #{{ .Int "vmid" }}</div>
+                    </div>
+                    <div>
+                      {{ if eq (.String "status") "running" }}
+                        <span class="color-positive">● Running</span>
+                      {{ else }}
+                        <span class="color-negative">● Stopped</span>
+                      {{ end }}
+                    </div>
+                  </div>
+
+                  {{ if eq (.String "status") "running" }}
+                    {{ $cpu := mul (.Float "cpu") 100 }}
+                    {{ $mem := .Float "mem" }}
+                    {{ $maxmem := .Float "maxmem" }}
+                    {{ $memPercent := div (mul $mem 100) $maxmem }}
+
+                    <div class="flex justify-between margin-bottom-5">
+                      <span class="color-subdue">CPU</span>
+                      <span>{{ printf "%.1f" $cpu }}%</span>
+                    </div>
+                    <div class="progress-bar margin-bottom-10">
+                      <div class="progress-value" style="--percent: {{ printf "%.1f" $cpu }}"></div>
+                    </div>
+
+                    <div class="flex justify-between margin-bottom-5">
+                      <span class="color-subdue">RAM</span>
+                      <span>{{ div $mem 1048576 | printf "%.0f" }} / {{ div $maxmem 1048576 | printf "%.0f" }} MB</span>
+                    </div>
+                    <div class="progress-bar">
+                      <div class="progress-value" style="--percent: {{ printf "%.1f" $memPercent }}"></div>
+                    </div>
+                  {{ else }}
+                    <div class="color-subdue">Container is powered off</div>
+                  {{ end }}
+                </div>
+              {{ end }}
+
+      # MIDDLE COLUMN - Services
+      - size: full
+        widgets:
+          - type: monitor
+            title: My Services
+            cache: 1m
+            sites:
+              - title: TT Tools Stats
+                url: https://stats.ckell.dev
+                check-url: https://stats.ckell.dev/health
+
+              - title: Uptime Kuma
+                url: https://status.ckell.dev/status/tt-tools
+
+              - title: Home Assistant
+                url: http://100.97.55.71:8123
+                check-url: http://100.97.55.71:8123/manifest.json
+                icon: si:homeassistant
+
+              - title: Jellyfin
+                url: http://100.64.247.29:8096
+                check-url: http://100.64.247.29:8096/health
+                icon: si:jellyfin
+
+              - title: AdGuard Home
+                url: http://192.168.1.57
+                check-url: http://192.168.1.57/login.html
+                icon: si:adguard
+
+          - type: custom-api
+            title: Transport Tycoon Bot Health
+            cache: 30s
+            url: http://stats-web:3000/api/bot-health
+            basic-auth:
+              username: ${STATS_USERNAME}
+              password: ${STATS_PASSWORD}
+            template: |
+              {{ $online := .JSON.Bool "online" }}
+              {{ $node := .JSON.String "activeNode" }}
+              {{ $ping := .JSON.Int "ping" }}
+              {{ $uptime := .JSON.Float "uptimeSeconds" }}
+              {{ $memory := .JSON.Float "memoryMB" }}
+              {{ $servers := .JSON.Int "serverCount" }}
+
+              <div class="flex justify-between items-center margin-bottom-15">
+                <div class="size-h4">
+                  {{ if $online }}
+                    <span class="color-positive">● Online</span>
+                  {{ else }}
+                    <span class="color-negative">● Offline</span>
+                  {{ end }}
+                </div>
+                <div class="color-subdue">
+                  {{ if eq $node "home" }}
+                    Home Server
+                  {{ else if eq $node "vps" }}
+                    VPS
+                  {{ else }}
+                    Unknown Server
+                  {{ end }}
+                </div>
+              </div>
+
+              <div class="flex justify-between margin-bottom-10">
+                <span class="color-subdue">Discord Ping</span>
+                <span class="color-highlight">{{ $ping }} ms</span>
+              </div>
+
+              <div class="flex justify-between margin-bottom-10">
+                <span class="color-subdue">Bot Uptime</span>
+                <span class="color-highlight">
+                  {{ printf "%.1f" (div $uptime 3600) }} hours
+                </span>
+              </div>
+
+              <div class="flex justify-between margin-bottom-10">
+                <span class="color-subdue">Memory Usage</span>
+                <span class="color-highlight">
+                  {{ printf "%.1f" $memory }} MB
+                </span>
+              </div>
+
+              <div class="flex justify-between margin-bottom-10">
+                <span class="color-subdue">Discord Servers</span>
+                <span class="color-highlight">{{ $servers }}</span>
+              </div>
+
+              <div class="margin-top-15">
+                <div class="flex justify-between margin-bottom-5">
+                  <span class="color-subdue">Home Server</span>
+                  <span>{{ .JSON.String "homeStatus" }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="color-subdue">VPS</span>
+                  <span>{{ .JSON.String "vpsStatus" }}</span>
+                </div>
+              </div>
+
+          - type: custom-api
+            title: Transport Tycoon API Connectivity
+            cache: 1m
+            url: http://stats-web:3000/api/tycoon-connectivity
+            basic-auth:
+              username: ${STATS_USERNAME}
+              password: ${STATS_PASSWORD}
+            template: |
+              <div class="flex justify-between items-center margin-bottom-15">
+                <div>
+                  <div class="size-h4">Server 1</div>
+                  <div class="color-subdue">Port 30120</div>
+                </div>
+                <div>
+                  {{ if .JSON.Bool "server1" }}
+                    <span class="color-positive">● Reachable</span>
+                  {{ else }}
+                    <span class="color-negative">● Unreachable</span>
+                  {{ end }}
+                </div>
+              </div>
+
+              <div class="flex justify-between items-center">
+                <div>
+                  <div class="size-h4">Server 5</div>
+                  <div class="color-subdue">Port 30125</div>
+                </div>
+                <div>
+                  {{ if .JSON.Bool "server5" }}
+                    <span class="color-positive">● Reachable</span>
+                  {{ else }}
+                    <span class="color-negative">● Unreachable</span>
+                  {{ end }}
+                </div>
+              </div>
+
+          - type: custom-api
+            title: AdGuard Home Statistics
+            url: http://192.168.1.57/control/stats
+            cache: 5m
+            basic-auth:
+              username: ${ADGUARD_USERNAME}
+              password: ${ADGUARD_PASSWORD}
+            template: |
+              {{ $total := .JSON.Int "num_dns_queries" }}
+              {{ $blocked := .JSON.Int "num_blocked_filtering" }}
+              {{ $percentage := 0.0 }}
+              {{ if gt $total 0 }}
+                {{ $percentage = mul (div (toFloat $blocked) (toFloat $total)) 100 }}
+              {{ end }}
+
+              <div class="flex justify-between">
+                <div>
+                  <div class="color-highlight size-h3">{{ $total | formatNumber }}</div>
+                  <div class="size-h6">DNS Queries</div>
+                </div>
+                <div>
+                  <div class="color-highlight size-h3">{{ $blocked | formatNumber }}</div>
+                  <div class="size-h6">Blocked Queries</div>
+                </div>
+              </div>
+
+              <div class="margin-top-15">
+                <div class="flex justify-between">
+                  <span>Blocking Rate</span>
+                  <span class="color-positive">{{ printf "%.1f%%" $percentage }}</span>
+                </div>
+                <div class="progress-bar margin-top-5">
+                  <div class="progress-value" style="--percent: {{ printf "%.1f" $percentage }}"></div>
+                </div>
+              </div>
+
+              <div class="margin-top-15 flex justify-between">
+                <span>Average DNS Processing Time</span>
+                <span class="color-highlight">
+                  {{ printf "%.1f ms" (mul (.JSON.Float "avg_processing_time") 1000) }}
+                </span>
+              </div>
+
+      # RIGHT COLUMN - Quick Links
+      - size: small
+        widgets:
+          - type: bookmarks
+            title: Quick Links
+            groups:
+              - title: Server Management
+                links:
+                  - title: Proxmox
+                    url: https://100.103.25.47:8006
+
+                  - title: Uptime Kuma
+                    url: https://status.ckell.dev
+
+                  - title: TT Tools Stats
+                    url: https://stats.ckell.dev

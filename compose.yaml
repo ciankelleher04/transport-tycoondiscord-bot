@@ -20,3 +20,14 @@ services:
       - ./data:/data
     ports:
       - "3000:3000"
+
+  glance:
+    image: glanceapp/glance:latest
+    container_name: glance
+    restart: unless-stopped
+    env_file:
+      - ./glance/secrets.env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./glance/glance.yml:/app/config/glance.yml:ro

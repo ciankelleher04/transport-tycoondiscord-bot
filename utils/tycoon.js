@@ -2,6 +2,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { fetch: undiciFetch, Agent } = require('undici');
 const logger = require('../services/logger');
+const {
+    recordServerResult,
+    recordApiResult,
+} = require('./apiMonitor');
 
 const USER_DATA_ENDPOINTS = [
     {
@@ -278,12 +282,34 @@ async function fetchUserData(apiKey, tycoonUserId) {
                 continue;
             }
 
+            // Record successful API request
+            recordServerResult(endpoint.name, true);
+            recordApiResult(true, endpoint.name);
+
             return {
                 data: normalizedData,
                 chargesLeft,
             };
+
         } catch (error) {
             lastError = error;
+
+            // Classify the API failure without changing fallback behaviour.
+            let errorType = 'network_or_other_error';
+
+            if (error.message.startsWith('API request rejected:')) {
+                errorType = 'http_4xx';
+            } else if (error.message.startsWith('API server error:')) {
+                errorType = 'http_5xx';
+            } else if (
+                error.name === 'TimeoutError' ||
+                error.name === 'AbortError'
+            ) {
+                errorType = 'timeout';
+            }
+
+            // Record which API server failed.
+            recordServerResult(endpoint.name, false, errorType);
 
             logger.error(
                 '[TYCOON API] Failed to fetch user data.',
@@ -297,12 +323,15 @@ async function fetchUserData(apiKey, tycoonUserId) {
             );
 
             if (error.message.startsWith('API request rejected:')) {
+                recordApiResult(false, null, errorType);
                 throw error;
             }
         }
     }
 
     if (fallbackResponse) {
+        recordApiResult(false, null, 'missing_streak_data');
+
         logger.warn(
             '[TYCOON API] Returning fallback response without streak data after all endpoint attempts.',
             {
@@ -313,6 +342,8 @@ async function fetchUserData(apiKey, tycoonUserId) {
 
         return fallbackResponse;
     }
+
+    recordApiResult(false, null, 'all_endpoints_failed');
 
     throw new Error(
         `All Tycoon data endpoints failed. ` +
