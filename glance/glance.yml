@@ -225,6 +225,82 @@ pages:
               </div>
 
           - type: custom-api
+            title: Transport Tycoon API Requests
+            cache: 1m
+            url: http://stats-web:3000/api/tycoon-health
+            basic-auth:
+              username: ${STATS_USERNAME}
+              password: ${STATS_PASSWORD}
+            template: |
+              {{ $result := .JSON.String "lastResult" }}
+              {{ $attempt := .JSON.String "lastAttemptAt" }}
+              {{ $success := .JSON.String "lastSuccessAt" }}
+              {{ $failure := .JSON.String "lastFailureAt" }}
+              {{ $server := .JSON.String "lastSuccessfulServer" }}
+              {{ $error := .JSON.String "lastErrorType" }}
+              {{ $recent := false }}
+
+              {{ if $attempt }}
+                {{ $attemptTime := parseTime "rfc3339" $attempt }}
+                {{ $recent = $attemptTime.After (offsetNow "-4h") }}
+              {{ end }}
+
+              <div class="flex justify-between items-center margin-bottom-15">
+                <span class="color-subdue">Latest API Result</span>
+                {{ if not $recent }}
+                  <span class="color-subdue">● No recent requests</span>
+                {{ else if eq $result "success" }}
+                  <span class="color-positive">● Success</span>
+                {{ else if eq $result "error" }}
+                  <span class="color-negative">● Request Failed</span>
+                {{ else }}
+                  <span class="color-subdue">● Unknown</span>
+                {{ end }}
+              </div>
+
+              <div class="flex justify-between margin-bottom-10">
+                <span class="color-subdue">Last Responding Server</span>
+                <span class="color-highlight">
+                  {{ if $server }}{{ $server }}{{ else }}Unknown{{ end }}
+                </span>
+              </div>
+
+              <div class="flex justify-between margin-bottom-10">
+                <span class="color-subdue">Last API Request</span>
+                {{ if $attempt }}
+                  <span {{ $attempt | parseTime "rfc3339" | toRelativeTime }}></span>
+                {{ else }}
+                  <span class="color-subdue">Never</span>
+                {{ end }}
+              </div>
+
+              <div class="flex justify-between margin-bottom-10">
+                <span class="color-subdue">Last Success</span>
+                {{ if $success }}
+                  <span {{ $success | parseTime "rfc3339" | toRelativeTime }}></span>
+                {{ else }}
+                  <span class="color-subdue">Never</span>
+                {{ end }}
+              </div>
+
+              <div class="flex justify-between margin-bottom-10">
+                <span class="color-subdue">Last Failure</span>
+                {{ if $failure }}
+                  <span {{ $failure | parseTime "rfc3339" | toRelativeTime }}></span>
+                {{ else }}
+                  <span class="color-positive">None recorded</span>
+                {{ end }}
+              </div>
+
+              {{ if eq $result "error" }}
+                <div class="margin-top-15">
+                  <span class="color-negative">
+                    Error: {{ $error }}
+                  </span>
+                </div>
+              {{ end }}
+
+          - type: custom-api
             title: AdGuard Home Statistics
             url: http://192.168.1.57/control/stats
             cache: 5m

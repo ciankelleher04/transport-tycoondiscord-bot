@@ -12,6 +12,8 @@ const PASSWORD = process.env.STATS_PASSWORD;
 const HEALTH_FILE = "/data/health.json";
 const HA_STATUS_FILE = "/data/ha-status.json";
 
+const TYCOON_API_HEALTH_FILE = "/data/tycoon-api-health.json";
+
 const db = new Database("/data/stats.db", {
     readonly: true,
 });
@@ -161,6 +163,41 @@ app.get("/api/tycoon-connectivity", async (req, res) => {
         server5,
         checkedAt: new Date().toISOString(),
     });
+});
+
+app.get("/api/tycoon-health", (req, res) => {
+    try {
+        if (!fs.existsSync(TYCOON_API_HEALTH_FILE)) {
+            return res.json({
+                lastResult: "unknown",
+                message: "No API requests recorded yet"
+            });
+        }
+
+        const health = JSON.parse(
+            fs.readFileSync(TYCOON_API_HEALTH_FILE, "utf8")
+        );
+
+        res.json({
+            lastResult: health.lastResult ?? "unknown",
+            lastAttemptAt: health.lastAttemptAt ?? null,
+            lastSuccessAt: health.lastSuccessAt ?? null,
+            lastFailureAt: health.lastFailureAt ?? null,
+            lastSuccessfulServer: health.lastSuccessfulServer ?? null,
+            lastErrorType: health.lastErrorType ?? null,
+            servers: health.servers ?? {}
+        });
+    } catch (error) {
+        console.error(
+            "[STATS WEB] Failed to read Tycoon API health:",
+            error
+        );
+
+        res.status(500).json({
+            status: "error",
+            message: "Unable to read API health information"
+        });
+    }
 });
 
 app.get("/", (req, res) => {
