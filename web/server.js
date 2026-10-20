@@ -14,9 +14,12 @@ const HA_STATUS_FILE = "/data/ha-status.json";
 
 const TYCOON_API_HEALTH_FILE = "/data/tycoon-api-health.json";
 
-const db = new Database("/data/stats.db", {
-    readonly: true,
-});
+function openStatsDb() {
+    return new Database("/data/stats.db", {
+        readonly: true,
+        fileMustExist: true,
+    });
+}
 
 function requireAuth(req, res, next) {
     const authHeader = req.headers.authorization;
@@ -201,6 +204,7 @@ app.get("/api/tycoon-health", (req, res) => {
 });
 
 app.get("/", (req, res) => {
+    const db = openStatsDb();
     /*
      * =========================
      * Health information
@@ -427,6 +431,9 @@ app.get("/", (req, res) => {
 
     const statusIcon =
         botOnline ? "🟢" : "🔴";
+
+    db.close();
+
 
     res.send(`
 <!DOCTYPE html>
