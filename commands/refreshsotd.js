@@ -7,6 +7,7 @@ const {
 } = require("discord.js");
 
 const { fetchSotd } = require("../utils/tycoon");
+const logger = require("../services/logger");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -34,7 +35,21 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
         });
 
-        const sotd = await fetchSotd(true);
+        let sotd;
+
+        try {
+            sotd = await fetchSotd(true);
+        } catch (error) {
+            logger.warn("[SOTD MANUAL REFRESH] Refresh failed.", {
+                service: "tycoon-sotd",
+                error: error.message,
+            });
+
+            return interaction.editReply({
+                content:
+                    "The SOTD refresh failed. Any confirmed current-day SOTD remains preserved; no unverified bonus was applied.",
+            });
+        }
 
         console.log("[SOTD MANUAL REFRESH]", sotd);
 
