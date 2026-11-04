@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { fetch: undiciFetch, Agent } = require('undici');
+const { fetch: undiciFetch } = require('undici');
 const logger = require('../services/logger');
 const {
     recordServerResult,
@@ -31,16 +31,6 @@ const TRUSTED_TYCOON_ORIGINS = new Set([
 ]);
 
 const TYCOON_API_KEY = process.env.TYCOON_API_KEY;
-const ALLOW_INVALID_TYCOON_CERT =
-    process.env.TYCOON_ALLOW_INVALID_CERT === 'true';
-
-const tycoonDispatcher = ALLOW_INVALID_TYCOON_CERT
-    ? new Agent({
-        connect: {
-            rejectUnauthorized: false,
-        },
-    })
-    : undefined;
 
 const USERS_FILE =
     process.env.USERS_FILE ??
@@ -57,20 +47,14 @@ async function tycoonFetch(url, options = {}) {
         );
     }
 
-    if (ALLOW_INVALID_TYCOON_CERT) {
-        logger.warn(
-            '[TYCOON API] TLS certificate verification is disabled for this bot session.',
-            {
-                service: 'tycoon-api',
-                origin: requestUrl.origin,
-            }
-        );
-    }
-
-    return undiciFetch(url, {
-        ...options,
-        ...(tycoonDispatcher ? { dispatcher: tycoonDispatcher } : {}),
-    });
+    /*
+     * The Transport Tycoon status endpoints are intentionally HTTP because
+     * the provider's HTTPS certificate previously expired. Do not switch
+     * these URLs back to HTTPS without confirming the certificate is valid.
+     * No TLS bypass is configured, so future HTTPS requests use normal
+     * certificate verification.
+     */
+    return undiciFetch(url, options);
 }
 
 /*
