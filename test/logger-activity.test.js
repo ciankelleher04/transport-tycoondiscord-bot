@@ -81,3 +81,63 @@ test('SOTD activity is emitted only for API confirmations, not cache reads', { c
         fs.rmSync(cacheDir, { recursive: true, force: true });
     }
 });
+
+test('startup API confirmation emits one SOTD activity notification', { concurrency: false }, async () => {
+    const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tt-startup-sotd-'));
+    process.env.TYCOON_API_KEY = 'test-key';
+    process.env.SOTD_CACHE_FILE = path.join(cacheDir, 'sotd.json');
+
+    const tycoonPath = require.resolve('../utils/tycoon');
+    const refresherPath = require.resolve('../services/sotdRefresher');
+    const cronPath = require.resolve('node-cron');
+    const originalCronModule = require.cache[cronPath];
+    const originalRefresherModule = require.cache[refresherPath];
+    delete require.cache[tycoonPath];
+    delete require.cache[refresherPath];
+    require.cache[cronPath] = {
+        id: cronPath,
+        filename: cronPath,
+        loaded: true,
+        exports: { schedule: () => ({}) },
+    };
+
+    const tycoon = require('../utils/tycoon');
+    const { startSotdRefresher } = require('../services/sotdRefresher');
+    const events = [];
+    const originalActivity = logger.activity;
+    logger.activity = (...args) => events.push(args);
+
+    tycoon.setSotdApiFetcher(async () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({
+            aptitude: 'fishing',
+            short: 'Fish',
+            skill: 'Fishing',
+            bonus: 50,
+        }),
+        text: async () => '',
+    }));
+
+    try {
+        const startup = startSotdRefresher();
+        await startup;
+        await startSotdRefresher();
+        assert.equal(events.filter(([type]) => type === 'sotd').length, 1);
+    } finally {
+        logger.activity = originalActivity;
+        if (originalRefresherModule) {
+            require.cache[refresherPath] = originalRefresherModule;
+        } else {
+            delete require.cache[refresherPath];
+        }
+        if (originalCronModule) {
+            require.cache[cronPath] = originalCronModule;
+        } else {
+            delete require.cache[cronPath];
+        }
+        delete require.cache[tycoonPath];
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+    }
+});

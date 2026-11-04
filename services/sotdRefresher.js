@@ -8,18 +8,39 @@ const SOTD_SCHEDULES = [
     { name: 'final', expression: '15 1 * * *' },
 ];
 
+let lastNotifiedConfirmation = null;
+
+function notifyConfirmedSotd(sotd) {
+    if (!sotd?.refreshConfirmed || sotd.source !== 'api') {
+        return;
+    }
+
+    const confirmation = [
+        sotd.dayKey,
+        sotd.aptitude,
+        sotd.short,
+        sotd.skill,
+        sotd.bonus,
+    ].join('|');
+
+    if (confirmation === lastNotifiedConfirmation) {
+        return;
+    }
+
+    lastNotifiedConfirmation = confirmation;
+    logger.activity('sotd', 'SOTD Updated', {
+        Skill: sotd.skill,
+        Bonus: `+${sotd.bonus}%`,
+        Updated: `${sotd.dayKey} ${sotd.refreshedAt.slice(11, 19)} UTC`,
+        Source: 'Transport Tycoon API',
+    });
+}
+
 async function refreshSotdNow() {
     try {
         const sotd = await fetchSotd();
 
-        if (sotd.refreshConfirmed) {
-            logger.activity('sotd', 'SOTD Updated', {
-                Skill: sotd.skill,
-                Bonus: `+${sotd.bonus}%`,
-                Updated: `${sotd.dayKey} ${sotd.refreshedAt.slice(11, 19)} UTC`,
-                Source: 'Transport Tycoon API',
-            });
-        }
+        notifyConfirmedSotd(sotd);
 
         return sotd;
     } catch (error) {
@@ -33,7 +54,7 @@ async function refreshSotdNow() {
 }
 
 function startSotdRefresher() {
-    fetchSotd().catch(error => {
+    const startupRefresh = fetchSotd().then(notifyConfirmedSotd).catch(error => {
         logger.warn(
             '[SOTD REFRESH] No confirmed current SOTD is available at startup.',
             { service: 'sotd-refresh', error: error.message }
@@ -49,6 +70,8 @@ function startSotdRefresher() {
             { timezone: 'UTC' }
         );
     }
+
+    return startupRefresh;
 }
 
 module.exports = {
