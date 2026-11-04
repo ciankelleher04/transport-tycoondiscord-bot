@@ -7,7 +7,7 @@ const {
     InteractionContextType,
 } = require("discord.js");
 
-const { fetchSotd } = require("../utils/tycoon");
+const { getStoredSotd } = require("../utils/tycoon");
 const logger = require("../services/logger");
 
 module.exports = {
@@ -83,19 +83,17 @@ module.exports = {
         let sotdBonus = 0;
         let sotdUnavailable = false;
 
-        try {
-            const sotd = await fetchSotd();
-
+        const sotd = getStoredSotd();
+        if (sotd) {
             if (sotd.skill.toLowerCase().includes("fish")) {
                 baseXp += sotd.bonus;
                 sotdBonus = sotd.bonus;
                 sotdApplied = true;
             }
-        } catch (error) {
+        } else {
             sotdUnavailable = true;
-            logger.warn("[FISH XP] Failed to fetch SOTD; continuing without it.", {
+            logger.warn("[FISH XP] Current SOTD is unavailable; continuing without it.", {
                 ...context,
-                error: error.message,
             });
         }
 
