@@ -280,7 +280,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
             Time: `${new Date().toISOString().slice(11, 19)} UTC`,
         });
         client.destroy();
-        process.exit(0);
+        setTimeout(() => process.exit(0), 250);
     });
 }
 
