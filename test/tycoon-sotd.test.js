@@ -53,7 +53,9 @@ test('caches one confirmed SOTD for the current day', async () => {
 
     assert.equal(calls, 1);
     assert.deepEqual(second, first);
-    assert.equal(JSON.parse(fs.readFileSync(cacheFile)).status, 'confirmed');
+    const persisted = JSON.parse(fs.readFileSync(cacheFile));
+    assert.equal(persisted.status, 'confirmed');
+    assert.ok(persisted.lastSuccessfulRefreshAt);
 });
 
 test('shares concurrent refreshes and supports manual refresh', async () => {

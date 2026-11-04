@@ -379,6 +379,8 @@ function loadSotdCache() {
             current: parsed.current ?? null,
             lastKnown: parsed.lastKnown ?? null,
             status: parsed.status ?? 'unavailable',
+            lastSuccessfulRefreshAt:
+                parsed.lastSuccessfulRefreshAt ?? null,
         };
     } catch (error) {
         logger.error(
@@ -523,6 +525,7 @@ async function refreshSotd() {
                     status: 'confirmed',
                 },
                 status: 'confirmed',
+                lastSuccessfulRefreshAt: refreshedAt,
             };
             saveSotdCache();
 
