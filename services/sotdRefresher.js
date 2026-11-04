@@ -2,9 +2,15 @@ const cron = require('node-cron');
 const logger = require('./logger');
 const { fetchSotd } = require('../utils/tycoon');
 
-async function refreshSotdNow(forceRefresh = true) {
+const SOTD_SCHEDULES = [
+    { name: 'main', expression: '15 0 * * *' },
+    { name: 'backup', expression: '45 0 * * *' },
+    { name: 'final', expression: '15 1 * * *' },
+];
+
+async function refreshSotdNow() {
     try {
-        return await fetchSotd(forceRefresh);
+        return await fetchSotd();
     } catch (error) {
         logger.error(
             '[SOTD REFRESH] Daily refresh failed after retries.',
@@ -23,24 +29,19 @@ function startSotdRefresher() {
         );
     });
 
-    cron.schedule(
-        '15 0 * * *',
-        () => {
-            refreshSotdNow();
-        },
-        { timezone: 'UTC' }
-    );
-
-    cron.schedule(
-        '*/15 * * * *',
-        () => {
-            refreshSotdNow(false);
-        },
-        { timezone: 'UTC' }
-    );
+    for (const schedule of SOTD_SCHEDULES) {
+        cron.schedule(
+            schedule.expression,
+            () => {
+                refreshSotdNow();
+            },
+            { timezone: 'UTC' }
+        );
+    }
 }
 
 module.exports = {
     startSotdRefresher,
     refreshSotdNow,
+    SOTD_SCHEDULES,
 };

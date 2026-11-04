@@ -21,3 +21,10 @@ This repository does not configure synchronization between the home-primary
 and VPS-failover hosts, so the `/data` directory must be replicated by the
 existing host failover process or the standby will perform a fresh API refresh
 after taking over.
+
+Automatic SOTD retrieval runs only at 00:15, 00:45, and 01:15 UTC. The first
+successful request ends automatic retrieval for that day. Each scheduled round
+tries the preferred API endpoint first and uses the second endpoint only if the
+first fails, so the maximum is 3 rounds x 2 HTTP requests = 6 requests per
+SOTD day. XP cache reads do not contact the API, and manual administrator
+refreshes are bounded to the same two endpoint attempts per invocation.

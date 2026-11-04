@@ -345,14 +345,9 @@ async function fetchUserData(apiKey, tycoonUserId) {
  */
 
 const SOTD_ROLLOVER_DELAY = 15 * 60 * 1000;
-const SOTD_RETRY_DELAYS = (
-    process.env.SOTD_RETRY_DELAYS_MS ?? '0,1000,5000'
-)
-    .split(',')
-    .map(Number)
-    .filter(delay => Number.isFinite(delay) && delay >= 0);
 const SOTD_FAILURE_COOLDOWN_MS =
     Number(process.env.SOTD_FAILURE_COOLDOWN_MS) || 5 * 60 * 1000;
+const SOTD_MAX_AUTOMATIC_ATTEMPTS = 3;
 let sotdCache = loadSotdCache();
 let sotdRefreshPromise = null;
 let sotdApiFetcher = tycoonFetch;
@@ -389,6 +384,11 @@ function loadSotdCache() {
             status: parsed.status ?? 'unavailable',
             lastSuccessfulRefreshAt:
                 parsed.lastSuccessfulRefreshAt ?? null,
+            automatic:
+                parsed.automatic ?? {
+                    dayKey: null,
+                    attempts: 0,
+                },
         };
     } catch (error) {
         logger.error(
@@ -428,6 +428,9 @@ function getStoredSotd() {
             dayKey: current.dayKey,
             refreshedAt: current.refreshedAt,
             status: current.status,
+            source: 'cache',
+            refreshConfirmed: false,
+            changed: false,
         };
     }
 
@@ -500,64 +503,44 @@ async function fetchSotdFromApi(dayKey) {
     );
 }
 
-async function refreshSotd() {
-    if (!TYCOON_API_KEY) {
-        throw new Error(
-            'TYCOON_API_KEY is missing from the environment variables'
-        );
+function sameSotd(left, right) {
+    return Boolean(
+        left &&
+        right &&
+        left.aptitude === right.aptitude &&
+        left.short === right.short &&
+        left.skill === right.skill &&
+        left.bonus === right.bonus
+    );
+}
+
+function getAutomaticState(dayKey) {
+    const automatic = sotdCache?.automatic;
+
+    if (automatic?.dayKey === dayKey) {
+        return automatic;
     }
 
-    const dayKey = getSotdDayKey();
-    let lastError;
+    return {
+        dayKey,
+        attempts: 0,
+    };
+}
 
-    for (const delay of SOTD_RETRY_DELAYS) {
-        if (delay > 0) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
+function recordAutomaticAttempt(dayKey) {
+    sotdCache = {
+        ...(sotdCache ?? {}),
+        automatic: {
+            dayKey,
+            attempts: getAutomaticState(dayKey).attempts + 1,
+        },
+    };
+    saveSotdCache();
+}
 
-        try {
-            const sotd = await fetchSotdFromApi(dayKey);
-            const refreshedAt = new Date().toISOString();
-
-            sotdCache = {
-                current: {
-                    sotd,
-                    dayKey,
-                    refreshedAt,
-                    status: 'confirmed',
-                },
-                lastKnown: {
-                    ...sotd,
-                    dayKey,
-                    refreshedAt,
-                    status: 'confirmed',
-                },
-                status: 'confirmed',
-                lastSuccessfulRefreshAt: refreshedAt,
-            };
-            saveSotdCache();
-            sotdNextRetryAt = 0;
-
-            logger.info(
-                '[TYCOON API] Current SOTD fetched successfully.',
-                {
-                    service: 'tycoon-sotd',
-                    skill: sotd.skill,
-                    bonus: sotd.bonus,
-                    currentDayKey: dayKey,
-                    refreshedAt,
-                }
-            );
-
-            return {
-                ...sotd,
-                dayKey,
-                refreshedAt,
-                status: 'confirmed',
-            };
-        } catch (error) {
-            lastError = error;
-        }
+function markSotdUnavailableIfNeeded(dayKey) {
+    if (getStoredSotd()) {
+        return;
     }
 
     sotdCache = {
@@ -566,9 +549,84 @@ async function refreshSotd() {
         status: 'unavailable',
     };
     saveSotdCache();
-    sotdNextRetryAt = Date.now() + SOTD_FAILURE_COOLDOWN_MS;
+}
 
-    throw lastError;
+async function refreshSotd({ automatic = false } = {}) {
+    if (!TYCOON_API_KEY) {
+        throw new Error(
+            'TYCOON_API_KEY is missing from the environment variables'
+        );
+    }
+
+    const dayKey = getSotdDayKey();
+    const existing = getStoredSotd();
+
+    if (automatic) {
+        const automaticState = getAutomaticState(dayKey);
+
+        if (automaticState.attempts >= SOTD_MAX_AUTOMATIC_ATTEMPTS) {
+            throw new Error(
+                'SOTD automatic refresh budget is exhausted for today'
+            );
+        }
+
+        recordAutomaticAttempt(dayKey);
+    }
+
+    try {
+        const sotd = await fetchSotdFromApi(dayKey);
+        const refreshedAt = new Date().toISOString();
+        const changed = !sameSotd(existing, sotd);
+
+        sotdCache = {
+            ...(sotdCache ?? {}),
+            current: {
+                sotd,
+                dayKey,
+                refreshedAt,
+                status: 'confirmed',
+            },
+            lastKnown: {
+                ...sotd,
+                dayKey,
+                refreshedAt,
+                status: 'confirmed',
+            },
+            status: 'confirmed',
+            lastSuccessfulRefreshAt: refreshedAt,
+        };
+        saveSotdCache();
+        sotdNextRetryAt = 0;
+
+        logger.info(
+            '[TYCOON API] Current SOTD fetched successfully.',
+            {
+                service: 'tycoon-sotd',
+                skill: sotd.skill,
+                bonus: sotd.bonus,
+                currentDayKey: dayKey,
+                refreshedAt,
+            }
+        );
+
+        return {
+            ...sotd,
+            dayKey,
+            refreshedAt,
+            status: 'confirmed',
+            source: 'api',
+            refreshConfirmed: true,
+            changed,
+        };
+    } catch (error) {
+        markSotdUnavailableIfNeeded(dayKey);
+        sotdNextRetryAt = Date.now() + SOTD_FAILURE_COOLDOWN_MS;
+        throw error;
+    }
+}
+
+function getSotdAutomaticState() {
+    return getAutomaticState(getSotdDayKey());
 }
 
 async function fetchSotd(forceRefresh = false) {
@@ -585,7 +643,9 @@ async function fetchSotd(forceRefresh = false) {
     }
 
     if (!sotdRefreshPromise) {
-        sotdRefreshPromise = refreshSotd().finally(() => {
+        sotdRefreshPromise = refreshSotd({
+            automatic: !forceRefresh,
+        }).finally(() => {
             sotdRefreshPromise = null;
         });
     }
@@ -612,7 +672,10 @@ module.exports = {
     fetchUserData,
     fetchSotd,
     getStoredSotd,
+    getSotdAutomaticState,
     getSotdDayKey,
+    refreshSotd,
+    SOTD_MAX_AUTOMATIC_ATTEMPTS,
     setSotdApiFetcher,
     resetSotdCacheForTests,
     buildStoredStreaks,
