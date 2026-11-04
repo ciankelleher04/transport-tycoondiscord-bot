@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const logger = require('../services/logger');
 
 const STATUS_FILE = '/data/tycoon-api-health.json';
 
@@ -64,9 +65,18 @@ function recordServerResult(server, success, errorType = null) {
 function recordApiResult(success, server = null, errorType = null) {
     const status = readStatus();
     const now = new Date().toISOString();
+    const result = success ? 'success' : 'error';
+
+    if (status.lastResult !== result) {
+        logger.activity('api', 'API Connectivity Changed', {
+            Status: result,
+            Server: server ?? 'Unavailable',
+            Error: errorType ?? 'None',
+        });
+    }
 
     status.lastAttemptAt = now;
-    status.lastResult = success ? 'success' : 'error';
+    status.lastResult = result;
 
     if (success) {
         status.lastSuccessAt = now;

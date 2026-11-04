@@ -28,3 +28,13 @@ tries the preferred API endpoint first and uses the second endpoint only if the
 first fails, so the maximum is 3 rounds x 2 HTTP requests = 6 requests per
 SOTD day. XP cache reads do not contact the API, and manual administrator
 refreshes are bounded to the same two endpoint attempts per invocation.
+
+## Discord activity channel
+
+Set `ACTIVITY_LOG_CHANNEL_ID` in the deployment `.env` to enable the optional
+activity channel. Activity events default to `command,sotd`; operational
+summaries can be enabled explicitly with a comma-separated
+`ACTIVITY_LOG_EVENTS` value such as `command,sotd,startup,shutdown,streak,api`.
+The existing
+`LOG_CHANNEL_ID` remains the alert channel for warnings, errors, and important
+events.

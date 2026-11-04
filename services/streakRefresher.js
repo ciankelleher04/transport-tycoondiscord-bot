@@ -89,6 +89,10 @@ async function refreshAllStreaks(client) {
         service: 'streak-refresh',
         userCount: Object.keys(users).length,
     });
+    logger.activity('streak', 'Streak Refresh Summary', {
+        Users: Object.keys(users).length,
+        Status: 'Completed',
+    });
 }
 
 function startStreakRefresher(client) {

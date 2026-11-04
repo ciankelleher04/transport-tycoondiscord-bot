@@ -1,7 +1,8 @@
 const Database = require('better-sqlite3');
 const path = require('node:path');
 
-const DB_FILE = path.join('/data', 'stats.db');
+const DB_FILE =
+    process.env.STATS_DB_FILE ?? path.join('/data', 'stats.db');
 
 const db = new Database(DB_FILE);
 

@@ -1,7 +1,22 @@
+const { EmbedBuilder } = require("discord.js");
+
 let discordClient = null;
 const RECENT_ALERTS = new Map();
+const RECENT_ACTIVITY = new Map();
+const ACTIVITY_SEND_QUEUE = [];
+let activitySendInProgress = false;
 const ALERT_WINDOW_MS = 5 * 60 * 1000;
 const MAX_ALERTS_PER_WINDOW = 5;
+const ACTIVITY_WINDOW_MS = 30 * 1000;
+
+function configuredActivityEvents() {
+    return new Set(
+        (process.env.ACTIVITY_LOG_EVENTS ?? "command,sotd")
+            .split(",")
+            .map(event => event.trim().toLowerCase())
+            .filter(Boolean)
+    );
+}
 
 function setClient(client) {
     discordClient = client;
@@ -77,6 +92,75 @@ function shouldThrottle(level, message) {
     return current.count > MAX_ALERTS_PER_WINDOW;
 }
 
+function formatActivityFields(fields = {}) {
+    return Object.entries(fields)
+        .filter(([, value]) => value !== undefined && value !== null && value !== "")
+        .map(([name, value]) => ({
+            name: String(name).slice(0, 256),
+            value: redactSecrets(value).slice(0, 1024),
+            inline: true,
+        }))
+        .slice(0, 25);
+}
+
+function activityIsThrottled(eventType, fields) {
+    const key = `${eventType}:${JSON.stringify(fields)}`;
+    const now = Date.now();
+    const lastAt = RECENT_ACTIVITY.get(key) ?? 0;
+
+    if (now - lastAt < ACTIVITY_WINDOW_MS) {
+        return true;
+    }
+
+    RECENT_ACTIVITY.set(key, now);
+    return false;
+}
+
+async function drainActivityQueue() {
+    if (activitySendInProgress || ACTIVITY_SEND_QUEUE.length === 0) {
+        return;
+    }
+
+    activitySendInProgress = true;
+    const { embed } = ACTIVITY_SEND_QUEUE.shift();
+
+    try {
+        const channelId = process.env.ACTIVITY_LOG_CHANNEL_ID;
+        const channel = await discordClient?.channels.fetch(channelId);
+
+        if (channel?.isTextBased()) {
+            await channel.send({ embeds: [embed] });
+        }
+    } catch (error) {
+        console.error("[LOGGER] Failed to send Discord activity:", error);
+    } finally {
+        activitySendInProgress = false;
+        void drainActivityQueue();
+    }
+}
+
+function activity(eventType, title, fields = {}) {
+    const channelId = process.env.ACTIVITY_LOG_CHANNEL_ID;
+
+    if (
+        !discordClient ||
+        !channelId ||
+        !configuredActivityEvents().has(eventType.toLowerCase()) ||
+        activityIsThrottled(eventType, fields)
+    ) {
+        return;
+    }
+
+    const embed = new EmbedBuilder()
+        .setTitle(`TT Tools — ${title}`)
+        .setColor("#5865F2")
+        .setTimestamp()
+        .addFields(formatActivityFields(fields));
+
+    ACTIVITY_SEND_QUEUE.push({ embed });
+    void drainActivityQueue();
+}
+
 async function sendToDiscord(level, message) {
     const channelId = process.env.LOG_CHANNEL_ID;
 
@@ -146,4 +230,5 @@ module.exports = {
     error,
     critical,
     important,
+    activity,
 };

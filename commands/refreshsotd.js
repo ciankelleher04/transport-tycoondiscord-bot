@@ -53,6 +53,15 @@ module.exports = {
 
         console.log("[SOTD MANUAL REFRESH]", sotd);
 
+        if (sotd.refreshConfirmed && sotd.changed) {
+            logger.activity("sotd", "SOTD Updated", {
+                Skill: sotd.skill,
+                Bonus: `+${sotd.bonus}%`,
+                Updated: `${sotd.dayKey} ${sotd.refreshedAt.slice(11, 19)} UTC`,
+                Source: "Manual Transport Tycoon API refresh",
+            });
+        }
+
         const sotdEmbed = new EmbedBuilder()
             .setTitle("🔄 SOTD Refreshed")
             .setColor("#5865F2")
