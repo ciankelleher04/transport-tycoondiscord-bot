@@ -35,6 +35,9 @@ const TYCOON_API_KEY = process.env.TYCOON_API_KEY;
 const USERS_FILE =
     process.env.USERS_FILE ??
     path.join(__dirname, '..', 'data', 'tycoon-users.json');
+const SOTD_CACHE_FILE =
+    process.env.SOTD_CACHE_FILE ??
+    path.join('/data', 'sotd.json');
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -341,12 +344,11 @@ async function fetchUserData(apiKey, tycoonUserId) {
  * =========================
  */
 
-let cachedSotd = null;
-let cachedSotdFetchedAt = 0;
-let cachedSotdDayKey = null;
-
-const SOTD_CACHE_TIME = 60 * 60 * 1000;
 const SOTD_ROLLOVER_DELAY = 15 * 60 * 1000;
+const SOTD_RETRY_DELAYS = [0, 1_000, 5_000];
+let sotdCache = loadSotdCache();
+let sotdRefreshPromise = null;
+let sotdApiFetcher = tycoonFetch;
 
 /*
  * SOTD does not always update exactly at 00:00 UTC.
@@ -365,65 +367,71 @@ function getSotdDayKey() {
     return now.toISOString().slice(0, 10);
 }
 
-async function fetchSotd(forceRefresh = false) {
-    if (!TYCOON_API_KEY) {
-        throw new Error(
-            'TYCOON_API_KEY is missing from the environment variables'
+function loadSotdCache() {
+    try {
+        if (!fs.existsSync(SOTD_CACHE_FILE)) return null;
+
+        const parsed = JSON.parse(fs.readFileSync(SOTD_CACHE_FILE, 'utf8'));
+
+        if (!parsed || typeof parsed !== 'object') return null;
+
+        return {
+            current: parsed.current ?? null,
+            lastKnown: parsed.lastKnown ?? null,
+            status: parsed.status ?? 'unavailable',
+        };
+    } catch (error) {
+        logger.error(
+            '[TYCOON API] Failed to load persistent SOTD cache.',
+            error,
+            { service: 'tycoon-sotd', cacheFile: SOTD_CACHE_FILE }
         );
+        return null;
     }
+}
 
+function saveSotdCache() {
+    const directory = path.dirname(SOTD_CACHE_FILE);
+    const temporaryFile =
+        `${SOTD_CACHE_FILE}.${process.pid}.${Date.now()}.tmp`;
+
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(
+        temporaryFile,
+        JSON.stringify(sotdCache, null, 2),
+        { encoding: 'utf8', mode: 0o600 }
+    );
+    fs.renameSync(temporaryFile, SOTD_CACHE_FILE);
+}
+
+function getStoredSotd() {
     const currentDayKey = getSotdDayKey();
-
-    const cacheAge = Date.now() - cachedSotdFetchedAt;
-
-    const cacheIsValid =
-        cachedSotd &&
-        cachedSotdDayKey === currentDayKey &&
-        cacheAge < SOTD_CACHE_TIME;
-
-    if (!forceRefresh && cacheIsValid) {
-        return cachedSotd;
-    }
+    const current = sotdCache?.current;
 
     if (
-        !forceRefresh &&
-        cachedSotd &&
-        cachedSotdDayKey === currentDayKey
+        current?.dayKey === currentDayKey &&
+        current.status === 'confirmed' &&
+        current.sotd
     ) {
-        const now = new Date();
-
-        if (
-            now.getUTCHours() === 0 &&
-            now.getUTCMinutes() < 15
-        ) {
-            logger.info(
-                '[TYCOON API] SOTD rollover delay active - using previous cached SOTD',
-                {
-                    service: 'tycoon-sotd',
-                    currentDayKey,
-                    cachedSotdDayKey,
-                }
-            );
-
-            return cachedSotd;
-        }
+        return {
+            ...current.sotd,
+            dayKey: current.dayKey,
+            refreshedAt: current.refreshedAt,
+            status: current.status,
+        };
     }
 
+    return null;
+}
+
+async function fetchSotdFromApi(dayKey) {
     let lastError;
 
     for (const baseUrl of SOTD_BASE_URLS) {
         const url = `${baseUrl}/sotd.json`;
 
         try {
-            logger.info(
-                '[TYCOON API] Trying SOTD endpoint.',
-                {
-                    service: 'tycoon-sotd',
-                    baseUrl,
-                }
-            );
-
-            const response = await tycoonFetch(url, {
+            const response = await sotdApiFetcher(url, {
                 method: 'GET',
                 headers: {
                     'X-Tycoon-Key': TYCOON_API_KEY,
@@ -449,7 +457,6 @@ async function fetchSotd(forceRefresh = false) {
             }
 
             const data = await response.json();
-
             const sotd = {
                 aptitude: String(data.aptitude ?? '').toLowerCase(),
                 short: String(data.short ?? ''),
@@ -457,19 +464,9 @@ async function fetchSotd(forceRefresh = false) {
                 bonus: Number(data.bonus) || 0,
             };
 
-            cachedSotd = sotd;
-            cachedSotdFetchedAt = Date.now();
-            cachedSotdDayKey = currentDayKey;
-
-            logger.info(
-                '[TYCOON API] Current SOTD fetched successfully.',
-                {
-                    service: 'tycoon-sotd',
-                    skill: sotd.skill,
-                    bonus: sotd.bonus,
-                    currentDayKey,
-                }
-            );
+            if (!sotd.skill || !sotd.short || !Number.isFinite(sotd.bonus)) {
+                throw new Error('SOTD response is missing required fields.');
+            }
 
             return sotd;
         } catch (error) {
@@ -478,11 +475,7 @@ async function fetchSotd(forceRefresh = false) {
             logger.error(
                 '[TYCOON API] SOTD fetch failed.',
                 error,
-                {
-                    service: 'tycoon-sotd',
-                    baseUrl,
-                    currentDayKey,
-                }
+                { service: 'tycoon-sotd', baseUrl, currentDayKey: dayKey }
             );
 
             if (error.message.startsWith('SOTD request rejected:')) {
@@ -491,23 +484,104 @@ async function fetchSotd(forceRefresh = false) {
         }
     }
 
-    if (cachedSotd) {
-        logger.warn(
-            '[TYCOON API] Using expired cached SOTD value.',
-            {
-                service: 'tycoon-sotd',
-                currentDayKey,
-                cacheAge,
-            }
-        );
-
-        return cachedSotd;
-    }
-
     throw new Error(
         `All Tycoon SOTD endpoints failed. ` +
         `Last error: ${lastError?.message ?? 'Unknown error'}`
     );
+}
+
+async function refreshSotd() {
+    if (!TYCOON_API_KEY) {
+        throw new Error(
+            'TYCOON_API_KEY is missing from the environment variables'
+        );
+    }
+
+    const dayKey = getSotdDayKey();
+    let lastError;
+
+    for (const delay of SOTD_RETRY_DELAYS) {
+        if (delay > 0) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        try {
+            const sotd = await fetchSotdFromApi(dayKey);
+            const refreshedAt = new Date().toISOString();
+
+            sotdCache = {
+                current: {
+                    sotd,
+                    dayKey,
+                    refreshedAt,
+                    status: 'confirmed',
+                },
+                lastKnown: {
+                    ...sotd,
+                    dayKey,
+                    refreshedAt,
+                    status: 'confirmed',
+                },
+                status: 'confirmed',
+            };
+            saveSotdCache();
+
+            logger.info(
+                '[TYCOON API] Current SOTD fetched successfully.',
+                {
+                    service: 'tycoon-sotd',
+                    skill: sotd.skill,
+                    bonus: sotd.bonus,
+                    currentDayKey: dayKey,
+                    refreshedAt,
+                }
+            );
+
+            return {
+                ...sotd,
+                dayKey,
+                refreshedAt,
+                status: 'confirmed',
+            };
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    sotdCache = {
+        ...(sotdCache ?? {}),
+        current: null,
+        status: 'unavailable',
+    };
+    saveSotdCache();
+
+    throw lastError;
+}
+
+async function fetchSotd(forceRefresh = false) {
+    const storedSotd = getStoredSotd();
+
+    if (!forceRefresh && storedSotd) {
+        return storedSotd;
+    }
+
+    if (!sotdRefreshPromise) {
+        sotdRefreshPromise = refreshSotd().finally(() => {
+            sotdRefreshPromise = null;
+        });
+    }
+
+    return sotdRefreshPromise;
+}
+
+function setSotdApiFetcher(fetcher) {
+    sotdApiFetcher = fetcher;
+}
+
+function resetSotdCacheForTests() {
+    sotdCache = null;
+    sotdRefreshPromise = null;
+    sotdApiFetcher = tycoonFetch;
 }
 
 module.exports = {
@@ -517,6 +591,10 @@ module.exports = {
     formatTimeRemaining,
     fetchUserData,
     fetchSotd,
+    getStoredSotd,
+    getSotdDayKey,
+    setSotdApiFetcher,
+    resetSotdCacheForTests,
     buildStoredStreaks,
     STREAK_JOBS,
     wantsStreakNotification,

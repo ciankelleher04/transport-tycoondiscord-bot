@@ -16,6 +16,8 @@ const client = new Client({
 
 const { startStreakRefresher } =
     require("./services/streakRefresher");
+const { startSotdRefresher } =
+    require("./services/sotdRefresher");
 
 const { startStreakReminderChecker } =
     require("./services/reminders");
@@ -113,6 +115,7 @@ client.once("ready", () => {
     logger.important(`Bot logged in as ${client.user.tag}`);
 
     startStreakRefresher(client);
+    startSotdRefresher();
     startStreakReminderChecker(client);
     startHealthWriter(client);
     startKumaHeartbeat();

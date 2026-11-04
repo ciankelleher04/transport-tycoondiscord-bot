@@ -81,6 +81,7 @@ module.exports = {
         let baseXp = enteredBaseXp;
         let sotdApplied = false;
         let sotdBonus = 0;
+        let sotdUnavailable = false;
 
         try {
             const sotd = await fetchSotd();
@@ -91,6 +92,7 @@ module.exports = {
                 sotdApplied = true;
             }
         } catch (error) {
+            sotdUnavailable = true;
             logger.warn("[FISH XP] Failed to fetch SOTD; continuing without it.", {
                 ...context,
                 error: error.message,
@@ -163,6 +165,13 @@ module.exports = {
             fishEmbed.addFields({
                 name: "🎣 SOTD Bonus",
                 value: `+${sotdBonus}%`,
+                inline: true,
+            });
+        }
+        if (sotdUnavailable) {
+            fishEmbed.addFields({
+                name: "🎣 SOTD Bonus",
+                value: "Unavailable - no confirmed current SOTD",
                 inline: true,
             });
         }
