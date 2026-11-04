@@ -20,8 +20,8 @@ function interaction(commandName) {
         bonus_xp: false,
         bonus_xp_amount: 0,
     };
-
-    return {
+    const interactionState = {};
+    const result = {
         user: { id: 'user-1', tag: 'Tester' },
         guild: null,
         client: {
@@ -37,9 +37,14 @@ function interaction(commandName) {
             getBoolean: name => values[name],
         },
         deferReply: async () => {},
-        editReply: async reply => reply,
+        editReply: async reply => {
+            interactionState.lastReply = reply;
+            result.lastReply = reply;
+            return reply;
+        },
         commandName,
     };
+    return result;
 }
 
 test.after(() => {
@@ -55,17 +60,19 @@ test('XP commands use cache only and do not consume API attempts when SOTD is mi
         throw new Error('API must not be called by XP commands');
     });
 
-    const bearReply = await bearxp.execute(interaction('bearxp'));
-    const fishReply = await fishxp.execute(interaction('fishxp'));
+    const bearInteraction = interaction('bearxp');
+    const fishInteraction = interaction('fishxp');
+    await bearxp.execute(bearInteraction);
+    await fishxp.execute(fishInteraction);
 
     assert.equal(apiCalls, 0);
     assert.ok(
-        bearReply.embeds[0].data.fields.some(field =>
+        bearInteraction.lastReply.embeds[0].data.fields.some(field =>
             field.name.includes('SOTD Bonus')
         )
     );
     assert.ok(
-        fishReply.embeds[0].data.fields.some(field =>
+        fishInteraction.lastReply.embeds[0].data.fields.some(field =>
             field.name.includes('SOTD Bonus')
         )
     );
