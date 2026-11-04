@@ -11,6 +11,7 @@ process.env.SOTD_CACHE_FILE = path.join(cacheDir, 'sotd.json');
 const tycoon = require('../utils/tycoon');
 const bearxp = require('../commands/bearxp');
 const fishxp = require('../commands/fishxp');
+const logger = require('../services/logger');
 
 function interaction(commandName) {
     const values = {
@@ -51,7 +52,7 @@ test.after(() => {
     fs.rmSync(cacheDir, { recursive: true, force: true });
 });
 
-test('XP commands use cache only and do not consume API attempts when SOTD is missing', async () => {
+test('XP commands use cache only and do not consume API attempts when SOTD is missing', { concurrency: false }, async () => {
     let apiCalls = 0;
     tycoon.resetSotdCacheForTests();
     fs.rmSync(process.env.SOTD_CACHE_FILE, { force: true });
@@ -77,4 +78,27 @@ test('XP commands use cache only and do not consume API attempts when SOTD is mi
         )
     );
     assert.equal(tycoon.getSotdAutomaticState().attempts, 0);
+});
+
+test('missing SOTD cache is informational rather than a warning', { concurrency: false }, async () => {
+    const infos = [];
+    const warnings = [];
+    const originalInfo = logger.info;
+    const originalWarn = logger.warn;
+    logger.info = (...args) => infos.push(args);
+    logger.warn = (...args) => warnings.push(args);
+
+    try {
+        await bearxp.execute(interaction('bearxp'));
+        await fishxp.execute(interaction('fishxp'));
+    } finally {
+        logger.info = originalInfo;
+        logger.warn = originalWarn;
+    }
+
+    assert.equal(warnings.length, 0);
+    const unavailableInfos = infos.filter(([message]) =>
+        message.includes("Current SOTD is unavailable")
+    );
+    assert.equal(unavailableInfos.length, 2);
 });

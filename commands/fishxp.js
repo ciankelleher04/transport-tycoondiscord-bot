@@ -92,7 +92,7 @@ module.exports = {
             }
         } else {
             sotdUnavailable = true;
-            logger.warn("[FISH XP] Current SOTD is unavailable; continuing without it.", {
+            logger.info("[FISH XP] Current SOTD is unavailable; continuing without it.", {
                 ...context,
             });
         }

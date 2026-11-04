@@ -91,7 +91,7 @@ module.exports = {
             }
         } else {
             sotdUnavailable = true;
-            logger.warn("[BEAR XP] Current SOTD is unavailable; continuing without it.", {
+            logger.info("[BEAR XP] Current SOTD is unavailable; continuing without it.", {
                 ...context,
             });
         }
