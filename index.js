@@ -16,6 +16,8 @@ const client = new Client({
 
 const { startStreakRefresher } =
     require("./services/streakRefresher");
+const { startSotdRefresher } =
+    require("./services/sotdRefresher");
 
 const { startStreakReminderChecker } =
     require("./services/reminders");
@@ -111,14 +113,19 @@ client.once("ready", () => {
     logger.info("Bot is ready!");
     logger.info(`Logged in as ${client.user.tag}`);
     logger.important(`Bot logged in as ${client.user.tag}`);
+    logger.activity("startup", "Bot Started", {
+        User: client.user.tag,
+        Time: `${new Date().toISOString().slice(11, 19)} UTC`,
+    });
 
     startStreakRefresher(client);
+    startSotdRefresher();
     startStreakReminderChecker(client);
     startHealthWriter(client);
     startKumaHeartbeat();
 });
 
-client.on("interactionCreate", async interaction => {
+async function handleInteraction(interaction) {
     if (interaction.isStringSelectMenu()) {
         if (
             interaction.customId ===
@@ -150,7 +157,6 @@ client.on("interactionCreate", async interaction => {
                     guildName: interaction.guild?.name ?? 'DM',
                 }
             );
-
             return interaction.update({
                 content:
                     count === 0
@@ -209,6 +215,13 @@ client.on("interactionCreate", async interaction => {
             guildName: interaction.guild?.name ?? 'DM',
         }
     );
+    logger.activity("command", "Command Executed", {
+        Command: `/${interaction.commandName}`,
+        User: interaction.user.tag,
+        "User ID": interaction.user.id,
+        Location: interaction.guild?.name || "Direct Message",
+        Time: `${new Date().toISOString().slice(11, 19)} UTC`,
+    });
 
     logCommandUsage(interaction);
 
@@ -244,7 +257,9 @@ client.on("interactionCreate", async interaction => {
             await interaction.reply(errorMessage);
         }
     }
-});
+}
+
+client.on("interactionCreate", handleInteraction);
 
 process.on("unhandledRejection", error => {
     logger.critical("Unhandled promise rejection", error, {
@@ -258,4 +273,22 @@ process.on("uncaughtException", error => {
     });
 });
 
-client.login(process.env.TOKEN);
+for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.once(signal, () => {
+        logger.activity("shutdown", "Bot Stopping", {
+            Signal: signal,
+            Time: `${new Date().toISOString().slice(11, 19)} UTC`,
+        });
+        client.destroy();
+        setTimeout(() => process.exit(0), 250);
+    });
+}
+
+if (require.main === module) {
+    client.login(process.env.TOKEN);
+}
+
+module.exports = {
+    client,
+    handleInteraction,
+};
