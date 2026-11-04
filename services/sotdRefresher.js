@@ -10,7 +10,18 @@ const SOTD_SCHEDULES = [
 
 async function refreshSotdNow() {
     try {
-        return await fetchSotd();
+        const sotd = await fetchSotd();
+
+        if (sotd.refreshConfirmed) {
+            logger.activity('sotd', 'SOTD Updated', {
+                Skill: sotd.skill,
+                Bonus: `+${sotd.bonus}%`,
+                Updated: `${sotd.dayKey} ${sotd.refreshedAt.slice(11, 19)} UTC`,
+                Source: 'Transport Tycoon API',
+            });
+        }
+
+        return sotd;
     } catch (error) {
         logger.error(
             '[SOTD REFRESH] Daily refresh failed after retries.',
