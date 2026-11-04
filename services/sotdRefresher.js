@@ -2,9 +2,9 @@ const cron = require('node-cron');
 const logger = require('./logger');
 const { fetchSotd } = require('../utils/tycoon');
 
-async function refreshSotdNow() {
+async function refreshSotdNow(forceRefresh = true) {
     try {
-        return await fetchSotd(true);
+        return await fetchSotd(forceRefresh);
     } catch (error) {
         logger.error(
             '[SOTD REFRESH] Daily refresh failed after retries.',
@@ -27,6 +27,14 @@ function startSotdRefresher() {
         '15 0 * * *',
         () => {
             refreshSotdNow();
+        },
+        { timezone: 'UTC' }
+    );
+
+    cron.schedule(
+        '*/15 * * * *',
+        () => {
+            refreshSotdNow(false);
         },
         { timezone: 'UTC' }
     );

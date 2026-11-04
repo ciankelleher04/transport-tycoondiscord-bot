@@ -345,10 +345,18 @@ async function fetchUserData(apiKey, tycoonUserId) {
  */
 
 const SOTD_ROLLOVER_DELAY = 15 * 60 * 1000;
-const SOTD_RETRY_DELAYS = [0, 1_000, 5_000];
+const SOTD_RETRY_DELAYS = (
+    process.env.SOTD_RETRY_DELAYS_MS ?? '0,1000,5000'
+)
+    .split(',')
+    .map(Number)
+    .filter(delay => Number.isFinite(delay) && delay >= 0);
+const SOTD_FAILURE_COOLDOWN_MS =
+    Number(process.env.SOTD_FAILURE_COOLDOWN_MS) || 5 * 60 * 1000;
 let sotdCache = loadSotdCache();
 let sotdRefreshPromise = null;
 let sotdApiFetcher = tycoonFetch;
+let sotdNextRetryAt = 0;
 
 /*
  * SOTD does not always update exactly at 00:00 UTC.
@@ -528,6 +536,7 @@ async function refreshSotd() {
                 lastSuccessfulRefreshAt: refreshedAt,
             };
             saveSotdCache();
+            sotdNextRetryAt = 0;
 
             logger.info(
                 '[TYCOON API] Current SOTD fetched successfully.',
@@ -557,6 +566,7 @@ async function refreshSotd() {
         status: 'unavailable',
     };
     saveSotdCache();
+    sotdNextRetryAt = Date.now() + SOTD_FAILURE_COOLDOWN_MS;
 
     throw lastError;
 }
@@ -566,6 +576,12 @@ async function fetchSotd(forceRefresh = false) {
 
     if (!forceRefresh && storedSotd) {
         return storedSotd;
+    }
+
+    if (!forceRefresh && Date.now() < sotdNextRetryAt) {
+        throw new Error(
+            'SOTD refresh is temporarily unavailable; retry cooldown is active'
+        );
     }
 
     if (!sotdRefreshPromise) {
@@ -585,6 +601,7 @@ function resetSotdCacheForTests() {
     sotdCache = null;
     sotdRefreshPromise = null;
     sotdApiFetcher = tycoonFetch;
+    sotdNextRetryAt = 0;
 }
 
 module.exports = {

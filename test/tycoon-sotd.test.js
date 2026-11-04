@@ -11,6 +11,8 @@ const cacheFile = path.join(
 
 process.env.TYCOON_API_KEY = 'test-key';
 process.env.SOTD_CACHE_FILE = cacheFile;
+process.env.SOTD_RETRY_DELAYS_MS = '0';
+process.env.SOTD_FAILURE_COOLDOWN_MS = '100';
 
 const tycoonPath = require.resolve('../utils/tycoon');
 let tycoon = require(tycoonPath);
@@ -110,6 +112,36 @@ test('does not use yesterday as a confirmed current SOTD after refresh failure',
     assert.equal(persisted.current, null);
     assert.equal(persisted.status, 'unavailable');
     assert.equal(tycoon.getStoredSotd(), null);
+});
+
+test('backs off repeated outage calls and recovers after the cooldown', async () => {
+    let calls = 0;
+    tycoon.resetSotdCacheForTests();
+    fs.rmSync(cacheFile, { force: true });
+    tycoon.setSotdApiFetcher(async () => {
+        calls += 1;
+        return response({}, false, 503);
+    });
+
+    await assert.rejects(tycoon.fetchSotd());
+    await assert.rejects(tycoon.fetchSotd(), /cooldown is active/);
+    assert.equal(calls, 2);
+
+    tycoon.setSotdApiFetcher(async () => {
+        calls += 1;
+        return response({
+            aptitude: 'fishing',
+            short: 'Fish',
+            skill: 'Fishing',
+            bonus: 50,
+        });
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 110));
+    const recovered = await tycoon.fetchSotd();
+
+    assert.equal(recovered.status, 'confirmed');
+    assert.equal(calls, 3);
 });
 
 test('rollover delay maps 00:00 UTC to the previous SOTD day', () => {
