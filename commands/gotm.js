@@ -16,7 +16,7 @@ const PRODUCT_GOTM_POINTS = Object.freeze({
     airline: { label: "Airline", points: 3, limit: 10000 },
     airlinemeals: { label: "Airlinemeals", points: 6, limit: 500 },
     batteries: { label: "Batteries", points: 7, limit: 500 },
-    bears: { label: "Bears", points: 10, limit: 50 },
+    //bears: { label: "Bears", points: 10, limit: 50 },
     biz: { label: "Biz", points: 8, limit: 20000 },
     bronzealloy: { label: "Bronzealloy", points: 7, limit: 500 },
     bus: { label: "Bus", points: 3, limit: 20000 },
